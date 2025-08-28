@@ -1,0 +1,116 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*.local
+
+# Build Outputs
+dist/
+build/
+.next/
+out/
+coverage/
+
+# Runtime & Process Files
+*.pid
+*.seed
+*.pid.lock
+pids/
+
+# Logs
+*.log
+logs/
+loglevel.json
+
+# Cache & Temporary Files
+.cache/
+.parcel-cache/
+.tmp/
+.temp/
+*.tsbuildinfo
+.eslintcache
+.stylelintcache
+./ai_service/__pycache__/
+
+# Testing
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+chroma_db/
+
+# Uploads & User Content 
+uploads/
+user-uploads/
+documents/
+temp-files/
+ai_service/pdfs/
+
+# IDE & Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Backup Files
+*.bak
+*.backup
+*.old
+
+# OS Generated Files
+.Spotlight-V100
+.Trashes
+.DocumentRevisions-V100
+.fseventsd
+.TemporaryItems
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Security & Keys 
+*.pem
+*.key
+*.crt
+*.cert
+private/
+secrets/
+docusign_private.key
+
+# AWS & Deployment
+.aws/
+.serverless/
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# Docker
+.dockerignore
+Dockerfile.dev
+docker-compose.override.yml
+
+# Misc
+*.tgz
+*.tar.gz
+.yarn-integrity
+.yarnrc.yml
+.pnp.*
