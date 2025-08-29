@@ -3,13 +3,20 @@ const LicenseRecord = require("../models/LicenseRecord");
 
 // Configuration
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_API_KEY;
-const searchQueries = [
+
+// Search queries to use
+const SEARCH_QUERIES = [
+  "Cannabis shop",
   "Smoke Shop",
   "Cannabis retailer",
   "Cannabis distributor",
   "Cannabis manufacturer",
   "Cannabis cultivator",
 ];
+
+// In-memory storage for pagination tokens and query state
+const paginationTokens = new Map();
+const queryStates = new Map(); // Track which query we're currently on for each search
 
 // --- Get Place Details for additional info ---
 async function getPlaceDetails(placeId) {
@@ -38,59 +45,289 @@ function getPhotoUrl(photoReference, maxWidth = 400) {
   return `https://maps.googleapis.com/maps/api/place/photo?maxwidth=${maxWidth}&photo_reference=${photoReference}&key=${GOOGLE_MAPS_API_KEY}`;
 }
 
-// --- Fetch Nearby Shops from Google with enhanced data ---
-async function getNearbyShops(lat, lng, radius) {
-  let results = [];
+// --- Generate unique key for pagination ---
+function generatePaginationKey(lat, lng, radius) {
+  return `${lat}_${lng}_${radius}`;
+}
 
-  for (const query of searchQueries) {
-    const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${radius}&keyword=${encodeURIComponent(
-      query,
-    )}&key=${GOOGLE_MAPS_API_KEY}`;
-    const response = await axios.get(url);
+// --- Generate unique key for specific query pagination ---
+function generateQueryPaginationKey(lat, lng, radius, query) {
+  return `${lat}_${lng}_${radius}_${query}`;
+}
+
+// --- Initialize query state for a search session ---
+function initializeQueryState(lat, lng, radius) {
+  const sessionKey = generatePaginationKey(lat, lng, radius);
+  queryStates.set(sessionKey, {
+    currentQueryIndex: 0,
+    usedPlaceIds: new Set(), // Track already seen places to avoid duplicates
+    queriesExhausted: new Set(), // Track which queries have no more results
+    totalFetched: 0,
+  });
+  return sessionKey;
+}
+
+// --- Get current query for session ---
+function getCurrentQuery(sessionKey) {
+  const state = queryStates.get(sessionKey);
+  if (!state || state.currentQueryIndex >= SEARCH_QUERIES.length) {
+    return null;
+  }
+  return SEARCH_QUERIES[state.currentQueryIndex];
+}
+
+// --- Move to next query ---
+function moveToNextQuery(sessionKey) {
+  const state = queryStates.get(sessionKey);
+  if (state) {
+    state.currentQueryIndex++;
+    console.log(
+      `Moving to next query: ${getCurrentQuery(sessionKey) || "No more queries"}`,
+    );
+  }
+}
+
+// --- Fetch shops with current query ---
+async function fetchShopsWithCurrentQuery(
+  lat,
+  lng,
+  radius,
+  sessionKey,
+  isInitial = false,
+) {
+  const currentQuery = getCurrentQuery(sessionKey);
+  if (!currentQuery) {
+    console.log("No more queries available");
+    return {
+      results: [],
+      next_page_token: null,
+      has_more: false,
+      query_used: null,
+    };
+  }
+
+  const state = queryStates.get(sessionKey);
+  const queryPaginationKey = generateQueryPaginationKey(
+    lat,
+    lng,
+    radius,
+    currentQuery,
+  );
+
+  try {
+    let url, response;
+
+    if (isInitial || !paginationTokens.has(queryPaginationKey)) {
+      // Initial search for this query
+      url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${radius}&keyword=${encodeURIComponent(currentQuery)}&key=${GOOGLE_MAPS_API_KEY}`;
+      console.log(`Initial search for query: "${currentQuery}"`);
+    } else {
+      // Use pagination token for this query
+      const tokenData = paginationTokens.get(queryPaginationKey);
+
+      // Check if token is still valid (tokens expire after a short time)
+      const tokenAge = Date.now() - tokenData.timestamp;
+      if (tokenAge > 300000) {
+        // 5 minutes
+        console.log(
+          `Token expired for query "${currentQuery}", marking as exhausted`,
+        );
+        state.queriesExhausted.add(currentQuery);
+        paginationTokens.delete(queryPaginationKey);
+        moveToNextQuery(sessionKey);
+        return await fetchShopsWithCurrentQuery(
+          lat,
+          lng,
+          radius,
+          sessionKey,
+          true,
+        );
+      }
+
+      url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?pagetoken=${tokenData.token}&key=${GOOGLE_MAPS_API_KEY}`;
+      console.log(`Using pagination token for query: "${currentQuery}"`);
+
+      // Google requires a delay before using pagetoken
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+
+    response = await axios.get(url);
 
     if (response.data.results) {
-      // Add smoke_shop flag based on the search query
-      const queryResults = response.data.results.map((place) => ({
-        ...place,
-        smoke_shop: query === "Smoke Shop",
-      }));
-      results = results.concat(queryResults);
+      // Filter out duplicates based on place_id
+      const uniqueResults = response.data.results.filter((place) => {
+        if (state.usedPlaceIds.has(place.place_id)) {
+          return false;
+        }
+        state.usedPlaceIds.add(place.place_id);
+        return true;
+      });
+
+      // Store/update pagination token for this query
+      if (response.data.next_page_token) {
+        paginationTokens.set(queryPaginationKey, {
+          token: response.data.next_page_token,
+          timestamp: Date.now(),
+          lat,
+          lng,
+          radius,
+          query: currentQuery,
+        });
+      } else {
+        // No more pages for this query, mark as exhausted
+        console.log(`Query "${currentQuery}" exhausted, moving to next`);
+        state.queriesExhausted.add(currentQuery);
+        paginationTokens.delete(queryPaginationKey);
+      }
+
+      // Take only what we need to reach 10 results
+      const needed = 10;
+      const results = uniqueResults.slice(0, needed);
+      state.totalFetched += results.length;
+
+      console.log(
+        `Fetched ${results.length} unique results for query: "${currentQuery}"`,
+      );
+
+      // Check if we have more results available (either more pages for current query or more queries)
+      const hasMoreInCurrentQuery = !!response.data.next_page_token;
+      const hasMoreQueries =
+        state.currentQueryIndex < SEARCH_QUERIES.length - 1;
+      const hasMore = hasMoreInCurrentQuery || hasMoreQueries;
+
+      return {
+        results,
+        next_page_token: response.data.next_page_token,
+        has_more: hasMore,
+        query_used: currentQuery,
+        session_info: {
+          current_query: currentQuery,
+          current_query_index: state.currentQueryIndex,
+          total_queries: SEARCH_QUERIES.length,
+          total_fetched: state.totalFetched,
+          unique_places_found: state.usedPlaceIds.size,
+        },
+      };
+    }
+
+    return {
+      results: [],
+      next_page_token: null,
+      has_more: false,
+      query_used: currentQuery,
+      session_info: {
+        current_query: currentQuery,
+        current_query_index: state.currentQueryIndex,
+        total_queries: SEARCH_QUERIES.length,
+        total_fetched: state.totalFetched,
+        unique_places_found: state.usedPlaceIds.size,
+      },
+    };
+  } catch (error) {
+    console.error(
+      `Error fetching shops for query "${currentQuery}":`,
+      error.message,
+    );
+
+    // Mark this query as problematic and move to next
+    state.queriesExhausted.add(currentQuery);
+    moveToNextQuery(sessionKey);
+
+    // Try with next query if available
+    if (getCurrentQuery(sessionKey)) {
+      return await fetchShopsWithCurrentQuery(
+        lat,
+        lng,
+        radius,
+        sessionKey,
+        true,
+      );
+    }
+
+    return {
+      results: [],
+      next_page_token: null,
+      has_more: false,
+      query_used: currentQuery,
+      error: error.message,
+    };
+  }
+}
+
+// --- Get next batch of shops (handles query progression and pagination) ---
+async function getNextShopsBatch(lat, lng, radius, sessionKey) {
+  const state = queryStates.get(sessionKey);
+  if (!state) {
+    throw new Error("No active session found. Please start a new search.");
+  }
+
+  let allResults = [];
+  const targetCount = 10;
+
+  while (allResults.length < targetCount && getCurrentQuery(sessionKey)) {
+    const batchResponse = await fetchShopsWithCurrentQuery(
+      lat,
+      lng,
+      radius,
+      sessionKey,
+    );
+
+    if (batchResponse.results.length === 0) {
+      // No results from current query, move to next
+      moveToNextQuery(sessionKey);
+      continue;
+    }
+
+    allResults.push(...batchResponse.results);
+
+    // If we have enough results, return them
+    if (allResults.length >= targetCount) {
+      return {
+        results: allResults.slice(0, targetCount),
+        has_more: true,
+        session_info: batchResponse.session_info,
+      };
+    }
+
+    // If current query has no more pages, move to next query
+    if (!batchResponse.next_page_token) {
+      moveToNextQuery(sessionKey);
     }
   }
 
-  // Remove duplicates by place_id, keeping smoke_shop as true if any instance had it
-  const uniqueResults = Object.values(
-    results.reduce((acc, place) => {
-      if (acc[place.place_id]) {
-        // If this place already exists, keep smoke_shop as true if either instance has it
-        acc[place.place_id].smoke_shop =
-          acc[place.place_id].smoke_shop || place.smoke_shop;
-      } else {
-        acc[place.place_id] = place;
-      }
-      return acc;
-    }, {}),
-  );
+  // Return whatever we found
+  const hasMoreQueries = getCurrentQuery(sessionKey) !== null;
+  return {
+    results: allResults,
+    has_more: hasMoreQueries,
+    session_info: state
+      ? {
+          current_query: getCurrentQuery(sessionKey),
+          current_query_index: state.currentQueryIndex,
+          total_queries: SEARCH_QUERIES.length,
+          total_fetched: state.totalFetched,
+          unique_places_found: state.usedPlaceIds.size,
+        }
+      : null,
+  };
+}
 
-  // Enhance each result with detailed information
+// --- Enhanced shop data processing ---
+async function enhanceShopData(shops) {
   const enhancedResults = [];
-  console.log(
-    `Fetching detailed info for ${uniqueResults.length} unique places...`,
-  );
+  console.log(`Enhancing ${shops.length} shops with detailed information...`);
 
-  for (let i = 0; i < uniqueResults.length; i++) {
-    const place = uniqueResults[i];
+  for (let i = 0; i < shops.length; i++) {
+    const place = shops[i];
     console.log(
-      `Fetching details for place ${i + 1}/${uniqueResults.length}: ${place.name}`,
+      `Fetching details for place ${i + 1}/${shops.length}: ${place.name}`,
     );
 
     const placeDetails = await getPlaceDetails(place.place_id);
 
     if (placeDetails) {
-      // Combine basic place data with detailed data
       const enhancedPlace = {
         ...place,
-        // Override with more detailed info from place details
         name: placeDetails.name || place.name,
         formatted_address: placeDetails.formatted_address || place.vicinity,
         geometry: placeDetails.geometry || place.geometry,
@@ -101,7 +338,6 @@ async function getNearbyShops(lat, lng, radius) {
         types: placeDetails.types || place.types,
         business_status: placeDetails.business_status,
 
-        // New enhanced data
         opening_hours: placeDetails.opening_hours
           ? {
               open_now: placeDetails.opening_hours.open_now || false,
@@ -114,13 +350,11 @@ async function getNearbyShops(lat, lng, radius) {
               weekday_text: [],
             },
 
-        // Photos - get the first photo if available
         photo_url:
           placeDetails.photos && placeDetails.photos.length > 0
             ? getPhotoUrl(placeDetails.photos[0].photo_reference, 400)
             : null,
 
-        // Additional photo references for multiple images if needed
         photos: placeDetails.photos
           ? placeDetails.photos.map((photo) => ({
               photo_reference: photo.photo_reference,
@@ -133,27 +367,19 @@ async function getNearbyShops(lat, lng, radius) {
 
       enhancedResults.push(enhancedPlace);
     } else {
-      // If place details fetch failed, use original data with null values for new fields
       enhancedResults.push({
         ...place,
         business_status: null,
-        opening_hours: {
-          open_now: null,
-          periods: [],
-          weekday_text: [],
-        },
+        opening_hours: { open_now: null, periods: [], weekday_text: [] },
         photo_url: null,
         photos: [],
       });
     }
 
-    // Add a small delay to avoid hitting rate limits
+    // Rate limiting delay
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
-  console.log(
-    `Enhanced ${enhancedResults.length} places with detailed information`,
-  );
   return enhancedResults;
 }
 
@@ -180,35 +406,126 @@ function normalizeName(name) {
   return name.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-// Compare shops endpoint
+// --- Match shops with license records ---
+function matchShopsWithLicenses(googleShops, govRecords) {
+  const matches = [];
+  const googleShopStatusMap = new Map();
+
+  console.log("\n--- Starting Matching Process ---");
+
+  // Initialize all shops with no license status
+  googleShops.forEach((shop) => {
+    googleShopStatusMap.set(shop.place_id, {
+      license_status: null,
+      matchedRecord: null,
+    });
+  });
+
+  let totalComparisons = 0;
+  let validComparisons = 0;
+
+  for (const shop of googleShops) {
+    const gLat = shop.geometry.location.lat;
+    const gLng = shop.geometry.location.lng;
+
+    for (const record of govRecords) {
+      totalComparisons++;
+
+      if (
+        !record.location ||
+        !record.location.coordinates ||
+        record.location.coordinates.length < 2
+      ) {
+        continue;
+      }
+
+      const [dbLng, dbLat] = record.location.coordinates;
+
+      if (!dbLat || !dbLng || isNaN(dbLat) || isNaN(dbLng)) {
+        continue;
+      }
+
+      validComparisons++;
+      const distance = haversineDistance(gLat, gLng, dbLat, dbLng);
+
+      if (distance <= 100) {
+        const googleName = normalizeName(shop.name);
+        const dbBusinessName = normalizeName(record.business_name);
+        const dbDbaName = normalizeName(record.dba);
+
+        const businessNameMatch =
+          googleName.includes(dbBusinessName) ||
+          dbBusinessName.includes(googleName);
+        const dbaNameMatch =
+          dbDbaName &&
+          (googleName.includes(dbDbaName) || dbDbaName.includes(googleName));
+
+        if (businessNameMatch || dbaNameMatch) {
+          console.log(
+            `MATCH FOUND: ${shop.name} - License: ${record.license_status}`,
+          );
+
+          googleShopStatusMap.set(shop.place_id, {
+            license_status: record.license_status,
+            matchedRecord: record,
+          });
+
+          matches.push({
+            google: {
+              name: shop.name,
+              address: shop.formatted_address || shop.vicinity,
+              lat: gLat,
+              lng: gLng,
+              place_id: shop.place_id,
+              open_now: shop.opening_hours?.open_now,
+              business_status: shop.business_status,
+              photo_url: shop.photo_url,
+              opening_hours: shop.opening_hours,
+            },
+            gov: {
+              business_name: record.business_name,
+              license_number: record.license_number,
+              license_status: record.license_status,
+              license_type: record.license_type,
+              address: record.business_address,
+              city: record.city,
+              stateName: record.stateName,
+              dba: record.dba,
+            },
+            distance: `${Math.round(distance)}m`,
+            matchType: businessNameMatch ? "business_name" : "dba",
+          });
+          break; // Found a match, no need to check other records
+        }
+      }
+    }
+  }
+
+  return { matches, googleShopStatusMap, totalComparisons, validComparisons };
+}
+
+// --- Initial Compare Shops (starts multi-query search) ---
 async function compareShops(req, res) {
   try {
     const { lat, lng, radius = 5000 } = req.body;
 
-    console.log(`\n=== DEBUG: Starting comparison ===`);
-    console.log(
-      `Request coordinates: lat=${lat}, lng=${lng}, radius=${radius}`,
+    console.log(`\n=== Starting multi-query comparison ===`);
+    console.log(`Coordinates: lat=${lat}, lng=${lng}, radius=${radius}`);
+    console.log(`Available queries: ${SEARCH_QUERIES.join(", ")}`);
+
+    // Initialize query state for this search session
+    const sessionKey = initializeQueryState(lat, lng, radius);
+
+    // Get first batch of shops using multiple queries
+    const googleResponse = await getNextShopsBatch(
+      lat,
+      lng,
+      radius,
+      sessionKey,
     );
+    const enhancedShops = await enhanceShopData(googleResponse.results);
 
-    // Fetch from Google with detailed logging
-    console.log("\n--- Fetching from Google Maps ---");
-    const googleShops = await getNearbyShops(lat, lng, radius);
-    console.log(`Found ${googleShops.length} Google shops with enhanced data`);
-
-    // Log first few Google shops for debugging
-    googleShops.slice(0, 3).forEach((shop, i) => {
-      console.log(
-        `Google Shop ${i + 1}: "${shop.name}" at (${
-          shop.geometry.location.lat
-        }, ${shop.geometry.location.lng}) - Smoke Shop: ${
-          shop.smoke_shop
-        }, Open Now: ${shop.opening_hours.open_now}, Has Photo: ${
-          shop.photo_url ? "Yes" : "No"
-        }`,
-      );
-    });
-
-    // Fetch from your DB with detailed logging
+    // Get government records
     console.log("\n--- Fetching from Database ---");
     const govRecords = await LicenseRecord.find({
       "location.coordinates": { $exists: true, $ne: [] },
@@ -216,152 +533,12 @@ async function compareShops(req, res) {
       "location.coordinates.1": { $exists: true },
     });
 
-    console.log(
-      `Found ${govRecords.length} government records with coordinates`,
-    );
+    // Match shops with licenses
+    const { matches, googleShopStatusMap, totalComparisons, validComparisons } =
+      matchShopsWithLicenses(enhancedShops, govRecords);
 
-    // Log first few DB records for debugging
-    govRecords.slice(0, 3).forEach((record, i) => {
-      const [dbLng, dbLat] = record.location.coordinates;
-      console.log(
-        `DB Record ${i + 1}: "${
-          record.business_name
-        }" at (${dbLat}, ${dbLng}) - License Status: ${record.license_status}`,
-      );
-    });
-
-    const matches = [];
-    let totalComparisons = 0;
-    let validComparisons = 0;
-
-    console.log("\n--- Starting Matching Process ---");
-
-    // Create a map to store license status for each Google shop
-    const googleShopStatusMap = new Map();
-
-    for (const shop of googleShops) {
-      const gLat = shop.geometry.location.lat;
-      const gLng = shop.geometry.location.lng;
-
-      // Initialize all shops with no license status (not found in DB)
-      googleShopStatusMap.set(shop.place_id, {
-        license_status: null,
-        matchedRecord: null,
-      });
-
-      for (const record of govRecords) {
-        totalComparisons++;
-
-        // Check if coordinates exist and are valid
-        if (
-          !record.location ||
-          !record.location.coordinates ||
-          record.location.coordinates.length < 2
-        ) {
-          console.log(
-            `Skipping record ${record.business_name}: No valid coordinates`,
-          );
-          continue;
-        }
-
-        const [dbLng, dbLat] = record.location.coordinates;
-
-        // Skip if coordinates are invalid
-        if (!dbLat || !dbLng || isNaN(dbLat) || isNaN(dbLng)) {
-          console.log(
-            `Skipping record ${record.business_name}: Invalid coordinates (${dbLat}, ${dbLng})`,
-          );
-          continue;
-        }
-
-        validComparisons++;
-        const distance = haversineDistance(gLat, gLng, dbLat, dbLng);
-
-        // Log every comparison for debugging (limit to first 10 to avoid spam)
-        if (validComparisons <= 10) {
-          console.log(
-            `Comparing "${shop.name}" (${gLat}, ${gLng}) with "${
-              record.business_name
-            }" (${dbLat}, ${dbLng}) - Distance: ${Math.round(distance)}m`,
-          );
-        }
-
-        // First check distance (within 100m)
-        if (distance <= 100) {
-          console.log(`Distance match found: ${Math.round(distance)}m`);
-          console.log(`   Google: "${shop.name}" at (${gLat}, ${gLng})`);
-          console.log(
-            `   DB: "${record.business_name}" at (${dbLat}, ${dbLng})`,
-          );
-
-          // Now check name similarity - normalize names first
-          const googleName = normalizeName(shop.name);
-          const dbBusinessName = normalizeName(record.business_name);
-          const dbDbaName = normalizeName(record.dba);
-
-          console.log(`   Normalized Google name: "${googleName}"`);
-          console.log(`   Normalized DB business name: "${dbBusinessName}"`);
-          console.log(`   Normalized DB DBA name: "${dbDbaName}"`);
-
-          // Check if Google name matches either business_name or dba
-          const businessNameMatch =
-            googleName.includes(dbBusinessName) ||
-            dbBusinessName.includes(googleName);
-          const dbaNameMatch =
-            dbDbaName &&
-            (googleName.includes(dbDbaName) || dbDbaName.includes(googleName));
-
-          // ONLY for matched shops, get license_status from DB
-          if (businessNameMatch || dbaNameMatch) {
-            console.log(
-              `FULL MATCH FOUND! Distance: ${Math.round(
-                distance,
-              )}m, Name match: ${businessNameMatch ? "business_name" : "dba"}`,
-            );
-            console.log(`   License status from DB: ${record.license_status}`);
-
-            // Store license status from DB for this matched shop
-            googleShopStatusMap.set(shop.place_id, {
-              license_status: record.license_status, // actual license status from DB
-              matchedRecord: record,
-            });
-
-            matches.push({
-              google: {
-                name: shop.name,
-                address: shop.formatted_address || shop.vicinity,
-                lat: gLat,
-                lng: gLng,
-                place_id: shop.place_id,
-                smoke_shop: shop.smoke_shop,
-                open_now: shop.opening_hours.open_now,
-                business_status: shop.business_status,
-                photo_url: shop.photo_url,
-                opening_hours: shop.opening_hours,
-              },
-              gov: {
-                business_name: record.business_name,
-                license_number: record.license_number,
-                license_status: record.license_status,
-                license_type: record.license_type,
-                address: record.business_address,
-                city: record.city,
-                stateName: record.stateName,
-                dba: record.dba,
-                smoke_shop: record.smoke_shop,
-              },
-              distance: `${Math.round(distance)}m`,
-              matchType: businessNameMatch ? "business_name" : "dba",
-            });
-          } else {
-            console.log(`Distance match but no name similarity`);
-          }
-        }
-      }
-    }
-
-    // Prepare ALL Google shops with their license status and enhanced data
-    const allGoogleShops = googleShops.map((shop) => {
+    // Prepare response data
+    const allGoogleShops = enhancedShops.map((shop) => {
       const statusInfo = googleShopStatusMap.get(shop.place_id);
       return {
         name: shop.name,
@@ -373,73 +550,44 @@ async function compareShops(req, res) {
         user_ratings_total: shop.user_ratings_total,
         price_level: shop.price_level,
         types: shop.types,
-        smoke_shop: shop.smoke_shop,
         business_status: shop.business_status,
-
-        // Enhanced data
-        open_now: shop.opening_hours.open_now,
+        open_now: shop.opening_hours?.open_now,
         opening_hours: shop.opening_hours,
         photo_url: shop.photo_url,
         photos: shop.photos,
-
-        // License data
-        license_status: statusInfo.license_status, // null for non-matched, actual status for matched
-        isMatched: statusInfo.matchedRecord !== null,
+        license_status: statusInfo?.license_status,
+        isMatched: statusInfo?.matchedRecord !== null,
       };
     });
 
-    console.log(`\n=== SUMMARY ===`);
-    console.log(`Total Google shops: ${googleShops.length}`);
-    console.log(`Total DB records: ${govRecords.length}`);
-    console.log(`Total comparisons attempted: ${totalComparisons}`);
-    console.log(`Valid comparisons: ${validComparisons}`);
+    console.log(`\n=== INITIAL SUMMARY ===`);
+    console.log(`Shops returned: ${allGoogleShops.length}`);
     console.log(`Matches found: ${matches.length}`);
-    console.log(
-      `Shops with license status: ${
-        allGoogleShops.filter((shop) => shop.license_status).length
-      }`,
-    );
-    console.log(
-      `Smoke shops: ${allGoogleShops.filter((shop) => shop.smoke_shop).length}`,
-    );
-    console.log(
-      `Non-matched shops (license_status: null): ${
-        allGoogleShops.filter((shop) => !shop.isMatched).length
-      }`,
-    );
-    console.log(
-      `Shops currently open: ${
-        allGoogleShops.filter((shop) => shop.open_now === true).length
-      }`,
-    );
-    console.log(
-      `Shops with photos: ${
-        allGoogleShops.filter((shop) => shop.photo_url).length
-      }`,
-    );
+    console.log(`Has more results: ${googleResponse.has_more}`);
+    console.log(`Session key: ${sessionKey}`);
 
     res.json({
       success: true,
       data: {
-        allShops: allGoogleShops,
+        shops: allGoogleShops,
         matches,
+        pagination: {
+          current_page: 1,
+          has_more: googleResponse.has_more,
+          total_shown: allGoogleShops.length,
+          session_key: sessionKey, // Include session key for subsequent requests
+        },
+        search_info: {
+          ...googleResponse.session_info,
+          available_queries: SEARCH_QUERIES,
+        },
         debug: {
-          googleShopsCount: googleShops.length,
+          googleShopsCount: allGoogleShops.length,
           govRecordsCount: govRecords.length,
           totalComparisons,
           validComparisons,
           matchesFound: matches.length,
-          shopsWithLicenseStatus: allGoogleShops.filter(
-            (shop) => shop.license_status,
-          ).length,
-          smokeShops: allGoogleShops.filter((shop) => shop.smoke_shop).length,
-          nonMatchedShops: allGoogleShops.filter((shop) => !shop.isMatched)
-            .length,
-          shopsCurrentlyOpen: allGoogleShops.filter(
-            (shop) => shop.open_now === true,
-          ).length,
-          shopsWithPhotos: allGoogleShops.filter((shop) => shop.photo_url)
-            .length,
+          sessionKey: sessionKey,
         },
       },
     });
@@ -449,6 +597,207 @@ async function compareShops(req, res) {
       success: false,
       error: "Comparison failed",
       details: error.message,
+    });
+  }
+}
+
+// --- Get More Shops (continues multi-query search) ---
+async function getMoreShops(req, res) {
+  try {
+    const { lat, lng, radius = 5000, session_key } = req.body;
+
+    if (!session_key) {
+      return res.status(400).json({
+        success: false,
+        error: "session_key is required for pagination",
+      });
+    }
+
+    console.log(`\n=== Fetching more shops ===`);
+    console.log(`Coordinates: lat=${lat}, lng=${lng}, radius=${radius}`);
+    console.log(`Session key: ${session_key}`);
+
+    // Check if session exists
+    if (!queryStates.has(session_key)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid or expired session_key. Please start a new search.",
+      });
+    }
+
+    // Get next batch of shops
+    const googleResponse = await getNextShopsBatch(
+      lat,
+      lng,
+      radius,
+      session_key,
+    );
+
+    if (googleResponse.results.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          shops: [],
+          matches: [],
+          pagination: {
+            has_more: false,
+            total_shown: 0,
+            message: "No more results available from all queries",
+            session_key: session_key,
+          },
+          search_info: googleResponse.session_info,
+        },
+      });
+    }
+
+    const enhancedShops = await enhanceShopData(googleResponse.results);
+
+    // Get government records
+    const govRecords = await LicenseRecord.find({
+      "location.coordinates": { $exists: true, $ne: [] },
+      "location.coordinates.0": { $exists: true },
+      "location.coordinates.1": { $exists: true },
+    });
+
+    // Match new shops with licenses
+    const { matches, googleShopStatusMap } = matchShopsWithLicenses(
+      enhancedShops,
+      govRecords,
+    );
+
+    // Prepare response data
+    const allGoogleShops = enhancedShops.map((shop) => {
+      const statusInfo = googleShopStatusMap.get(shop.place_id);
+      return {
+        name: shop.name,
+        address: shop.formatted_address || shop.vicinity,
+        lat: shop.geometry.location.lat,
+        lng: shop.geometry.location.lng,
+        place_id: shop.place_id,
+        rating: shop.rating,
+        user_ratings_total: shop.user_ratings_total,
+        price_level: shop.price_level,
+        types: shop.types,
+        business_status: shop.business_status,
+        open_now: shop.opening_hours?.open_now,
+        opening_hours: shop.opening_hours,
+        photo_url: shop.photo_url,
+        photos: shop.photos,
+        license_status: statusInfo?.license_status,
+        isMatched: statusInfo?.matchedRecord !== null,
+      };
+    });
+
+    console.log(`\n=== MORE SHOPS SUMMARY ===`);
+    console.log(`Additional shops returned: ${allGoogleShops.length}`);
+    console.log(`New matches found: ${matches.length}`);
+    console.log(`Has more results: ${googleResponse.has_more}`);
+
+    res.json({
+      success: true,
+      data: {
+        shops: allGoogleShops,
+        matches,
+        pagination: {
+          has_more: googleResponse.has_more,
+          total_shown: allGoogleShops.length,
+          session_key: session_key,
+        },
+        search_info: {
+          ...googleResponse.session_info,
+          available_queries: SEARCH_QUERIES,
+        },
+        debug: {
+          newShopsCount: allGoogleShops.length,
+          newMatchesFound: matches.length,
+          sessionKey: session_key,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error getting more shops:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to get more shops",
+      details: error.message,
+    });
+  }
+}
+
+// --- Clear pagination tokens and query states ---
+async function clearPaginationTokens(req, res) {
+  try {
+    const { lat, lng, radius, session_key } = req.body;
+
+    if (session_key) {
+      // Clear specific session
+      queryStates.delete(session_key);
+
+      // Clear related pagination tokens
+      if (lat && lng && radius) {
+        SEARCH_QUERIES.forEach((query) => {
+          const queryKey = generateQueryPaginationKey(lat, lng, radius, query);
+          paginationTokens.delete(queryKey);
+        });
+      }
+
+      res.json({ success: true, message: "Specific session cleared" });
+    } else if (lat && lng && radius) {
+      // Clear all tokens for specific location
+      const sessionKey = generatePaginationKey(lat, lng, radius);
+      queryStates.delete(sessionKey);
+
+      SEARCH_QUERIES.forEach((query) => {
+        const queryKey = generateQueryPaginationKey(lat, lng, radius, query);
+        paginationTokens.delete(queryKey);
+      });
+
+      res.json({ success: true, message: "Location-specific tokens cleared" });
+    } else {
+      // Clear all tokens and states
+      paginationTokens.clear();
+      queryStates.clear();
+      res.json({ success: true, message: "All tokens and sessions cleared" });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+}
+
+// --- Get search session status ---
+async function getSessionStatus(req, res) {
+  try {
+    const { session_key } = req.params;
+
+    const state = queryStates.get(session_key);
+    if (!state) {
+      return res.status(404).json({
+        success: false,
+        error: "Session not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        session_key: session_key,
+        current_query: getCurrentQuery(session_key),
+        current_query_index: state.currentQueryIndex,
+        total_queries: SEARCH_QUERIES.length,
+        available_queries: SEARCH_QUERIES,
+        total_fetched: state.totalFetched,
+        unique_places_found: state.usedPlaceIds.size,
+        queries_exhausted: Array.from(state.queriesExhausted),
+        has_more: getCurrentQuery(session_key) !== null,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
     });
   }
 }
@@ -482,7 +831,6 @@ async function testDatabase(req, res) {
               stateName: sample.stateName,
               license_status: sample.license_status,
               license_type: sample.license_type,
-              smoke_shop: sample.smoke_shop,
             }
           : null,
       },
@@ -498,9 +846,12 @@ async function testDatabase(req, res) {
 module.exports = {
   getPlaceDetails,
   getPhotoUrl,
-  getNearbyShops,
+  enhanceShopData,
   haversineDistance,
   normalizeName,
-  compareShops,
+  compareShops, // Starts multi-query search
+  getMoreShops, // Continues multi-query search
+  clearPaginationTokens, // Clear tokens and sessions
+  getSessionStatus, // Get session status
   testDatabase,
 };
