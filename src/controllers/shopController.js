@@ -504,13 +504,104 @@ function matchShopsWithLicenses(googleShops, govRecords) {
   return { matches, googleShopStatusMap, totalComparisons, validComparisons };
 }
 
-// --- Initial Compare Shops (starts multi-query search) ---
+async function geocodeAddress(state, city, zip) {
+  // Changed zipCode to zip
+  try {
+    // Construct address string
+    let addressString = "";
+    if (city) addressString += city;
+    if (state) addressString += (addressString ? ", " : "") + state;
+    if (zip) addressString += (addressString ? ", " : "") + zip; // Changed zipCode to zip
+
+    if (!addressString) {
+      throw new Error(
+        "At least one of state, city, or zip code must be provided",
+      );
+    }
+
+    console.log(`Geocoding address with OpenStreetMap: ${addressString}`);
+
+    // Use Nominatim API from OpenStreetMap
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addressString)}&format=json&limit=1&countrycodes=us`;
+
+    const response = await axios.get(url, {
+      headers: {
+        "User-Agent": "Canoja/1.0 (muhammadahmad2493@gmail.com)",
+      },
+    });
+
+    if (response.data && response.data.length > 0) {
+      const result = response.data[0];
+      const lat = parseFloat(result.lat);
+      const lng = parseFloat(result.lon);
+
+      console.log(`Geocoding successful: ${result.display_name}`);
+      console.log(`Coordinates: lat=${lat}, lng=${lng}`);
+
+      return {
+        lat: lat,
+        lng: lng,
+        formatted_address: result.display_name,
+        success: true,
+      };
+    } else {
+      throw new Error("No results found for the provided address");
+    }
+  } catch (error) {
+    console.error("Geocoding error:", error.message);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+}
+
 async function compareShops(req, res) {
   try {
-    const { lat, lng, radius = 5000 } = req.body;
+    let lat, lng;
+    const { radius = 5000, state, city, zip } = req.body;
+
+    // Check if coordinates are provided directly
+    if (req.body.lat && req.body.lng) {
+      lat = parseFloat(req.body.lat);
+      lng = parseFloat(req.body.lng);
+      console.log(`Using provided coordinates: lat=${lat}, lng=${lng}`);
+    }
+    // If no coordinates, try to geocode from address components
+    else if (state || city || zip) {
+      console.log(
+        `No coordinates provided, attempting to geocode from address components`,
+      );
+      const geocodeResult = await geocodeAddress(state, city, zip);
+
+      if (!geocodeResult.success) {
+        return res.status(400).json({
+          success: false,
+          error: "Failed to geocode address",
+          details: geocodeResult.error,
+          message:
+            "Please provide either lat/lng coordinates or valid state/city/zip",
+        });
+      }
+
+      lat = geocodeResult.lat;
+      lng = geocodeResult.lng;
+
+      console.log(
+        `Geocoding successful, using coordinates: lat=${lat}, lng=${lng}`,
+      );
+    }
+    // If neither coordinates nor address components are provided
+    else {
+      return res.status(400).json({
+        success: false,
+        error: "Missing location data",
+        message: "Please provide either lat/lng coordinates or state/city/zip",
+      });
+    }
 
     console.log(`\n=== Starting multi-query comparison ===`);
-    console.log(`Coordinates: lat=${lat}, lng=${lng}, radius=${radius}`);
+    console.log(`Final coordinates: lat=${lat}, lng=${lng}, radius=${radius}`);
     console.log(`Available queries: ${SEARCH_QUERIES.join(", ")}`);
 
     // Initialize query state for this search session
@@ -575,11 +666,22 @@ async function compareShops(req, res) {
           current_page: 1,
           has_more: googleResponse.has_more,
           total_shown: allGoogleShops.length,
-          session_key: sessionKey, // Include session key for subsequent requests
+          session_key: sessionKey,
         },
         search_info: {
           ...googleResponse.session_info,
           available_queries: SEARCH_QUERIES,
+        },
+        location_info: {
+          // Include location info in response
+          input_method:
+            req.body.lat && req.body.lng ? "coordinates" : "address",
+          final_coordinates: { lat, lng },
+          input_data:
+            req.body.lat && req.body.lng
+              ? { lat: req.body.lat, lng: req.body.lng, radius }
+              : { state, city, zip, radius },
+          used_geocoding: !req.body.lat || !req.body.lng,
         },
         debug: {
           googleShopsCount: allGoogleShops.length,
