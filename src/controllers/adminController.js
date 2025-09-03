@@ -36,7 +36,7 @@ async function login(req, res) {
         isEnvAdmin: true,
       },
       process.env.JWT_SECRET || "your-secret-key",
-      { expiresIn: "24h" },
+      { expiresIn: "7d" },
     );
 
     res.json({
@@ -66,12 +66,10 @@ async function createUser(req, res) {
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = new User({ email, password: hashedPassword, role });
     await user.save();
-    res
-      .status(201)
-      .json({
-        message: "User created",
-        user: { email: user.email, role: user.role, _id: user._id },
-      });
+    res.status(201).json({
+      message: "User created",
+      user: { email: user.email, role: user.role, _id: user._id },
+    });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }

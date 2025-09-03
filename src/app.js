@@ -9,6 +9,9 @@ dotenv.config();
 const database = require("./config/database");
 const shopRoutes = require("./routes/shopRoutes");
 const adminRoutes = require("./routes/adminRoutes");
+const userRoutes = require("./routes/userRoutes");
+const verificationRoutes = require("./routes/verificationRoutes");
+
 const { swaggerUi, swaggerSpec } = require("./swagger");
 
 const app = express();
@@ -31,6 +34,8 @@ database.connect();
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use("/api/shops", shopRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/verification-requests", verificationRoutes);
 
 // Health check endpoint
 app.get("/health", (req, res) => {

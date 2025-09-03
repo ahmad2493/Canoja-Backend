@@ -69,8 +69,7 @@ router.post("/compare-shops", shopController.compareShops);
  */
 router.post(
   "/compare-shops/more",
-  validateCompareShops,
-  handleValidationErrors,
+
   shopController.getMoreShops,
 );
 

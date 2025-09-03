@@ -1,5 +1,5 @@
 const axios = require("axios");
-const LicenseRecord = require("../models/LicenseRecord");
+const LicenseRecord = require("../models/licenseRecord");
 
 // Configuration
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_API_KEY;
@@ -505,13 +505,12 @@ function matchShopsWithLicenses(googleShops, govRecords) {
 }
 
 async function geocodeAddress(state, city, zip) {
-  // Changed zipCode to zip
   try {
     // Construct address string
     let addressString = "";
     if (city) addressString += city;
     if (state) addressString += (addressString ? ", " : "") + state;
-    if (zip) addressString += (addressString ? ", " : "") + zip; // Changed zipCode to zip
+    if (zip) addressString += (addressString ? ", " : "") + zip;
 
     if (!addressString) {
       throw new Error(
@@ -556,23 +555,56 @@ async function geocodeAddress(state, city, zip) {
   }
 }
 
+// Determine radius based on location specificity ---
+function determineRadius(state, city, zipCode, providedRadius) {
+  // If radius is explicitly provided, use it
+  if (providedRadius && providedRadius !== 5000) {
+    console.log(`Using provided radius: ${providedRadius}m`);
+    return parseInt(providedRadius);
+  }
+
+  // Determine radius based on location specificity
+  if (state && city && zipCode) {
+    console.log(`State + City + ZIP provided, using 6km radius`);
+    return 6000; // 6km
+  } else if (state && city) {
+    console.log(`State + City provided, using 20km radius`);
+    return 20000; // 20km
+  } else if (state) {
+    console.log(`Only State provided, using 150km radius`);
+    return 100000; // 100km
+  } else {
+    console.log(`Using default radius: 5km`);
+    return 5000; // Default fallback
+  }
+}
+
 async function compareShops(req, res) {
   try {
-    let lat, lng;
-    const { radius = 5000, state, city, zip } = req.body;
+    let lat, lng, finalRadius;
+    const { radius, state, city, zipCode } = req.body;
 
     // Check if coordinates are provided directly
     if (req.body.lat && req.body.lng) {
       lat = parseFloat(req.body.lat);
       lng = parseFloat(req.body.lng);
+      // Use provided radius or default to 5km for coordinate-based searches
+      finalRadius = radius ? parseInt(radius) : 5000;
       console.log(`Using provided coordinates: lat=${lat}, lng=${lng}`);
+      console.log(
+        `Using radius: ${finalRadius}m (${radius ? "provided" : "default for coordinates"})`,
+      );
     }
     // If no coordinates, try to geocode from address components
-    else if (state || city || zip) {
+    else if (state || city || zipCode) {
       console.log(
         `No coordinates provided, attempting to geocode from address components`,
       );
-      const geocodeResult = await geocodeAddress(state, city, zip);
+
+      // Determine radius based on location specificity BEFORE geocoding
+      finalRadius = determineRadius(state, city, zipCode, radius);
+
+      const geocodeResult = await geocodeAddress(state, city, zipCode);
 
       if (!geocodeResult.success) {
         return res.status(400).json({
@@ -590,6 +622,9 @@ async function compareShops(req, res) {
       console.log(
         `Geocoding successful, using coordinates: lat=${lat}, lng=${lng}`,
       );
+      console.log(
+        `Auto-determined radius: ${finalRadius}m based on location specificity`,
+      );
     }
     // If neither coordinates nor address components are provided
     else {
@@ -601,17 +636,19 @@ async function compareShops(req, res) {
     }
 
     console.log(`\n=== Starting multi-query comparison ===`);
-    console.log(`Final coordinates: lat=${lat}, lng=${lng}, radius=${radius}`);
+    console.log(
+      `Final coordinates: lat=${lat}, lng=${lng}, radius=${finalRadius}`,
+    );
     console.log(`Available queries: ${SEARCH_QUERIES.join(", ")}`);
 
     // Initialize query state for this search session
-    const sessionKey = initializeQueryState(lat, lng, radius);
+    const sessionKey = initializeQueryState(lat, lng, finalRadius);
 
     // Get first batch of shops using multiple queries
     const googleResponse = await getNextShopsBatch(
       lat,
       lng,
-      radius,
+      finalRadius,
       sessionKey,
     );
     const enhancedShops = await enhanceShopData(googleResponse.results);
@@ -677,10 +714,23 @@ async function compareShops(req, res) {
           input_method:
             req.body.lat && req.body.lng ? "coordinates" : "address",
           final_coordinates: { lat, lng },
+          radius_used: finalRadius,
+          radius_determination: {
+            provided_radius: radius,
+            auto_determined: !req.body.lat || !req.body.lng,
+            location_specificity:
+              state && city && zipCode
+                ? "state_city_zip"
+                : state && city
+                  ? "state_city"
+                  : state
+                    ? "state_only"
+                    : "coordinates",
+          },
           input_data:
             req.body.lat && req.body.lng
-              ? { lat: req.body.lat, lng: req.body.lng, radius }
-              : { state, city, zip, radius },
+              ? { lat: req.body.lat, lng: req.body.lng, radius: finalRadius }
+              : { state, city, zipCode, radius: finalRadius },
           used_geocoding: !req.body.lat || !req.body.lng,
         },
         debug: {
@@ -690,6 +740,7 @@ async function compareShops(req, res) {
           validComparisons,
           matchesFound: matches.length,
           sessionKey: sessionKey,
+          finalRadius: finalRadius,
         },
       },
     });
@@ -727,11 +778,14 @@ async function getMoreShops(req, res) {
       });
     }
 
+    // Use the radius from the request (should match the original search)
+    const finalRadius = parseInt(radius);
+
     // Get next batch of shops
     const googleResponse = await getNextShopsBatch(
       lat,
       lng,
-      radius,
+      finalRadius,
       session_key,
     );
 
@@ -794,6 +848,7 @@ async function getMoreShops(req, res) {
     console.log(`Additional shops returned: ${allGoogleShops.length}`);
     console.log(`New matches found: ${matches.length}`);
     console.log(`Has more results: ${googleResponse.has_more}`);
+    console.log(`Using radius: ${finalRadius}m`);
 
     res.json({
       success: true,
@@ -813,6 +868,7 @@ async function getMoreShops(req, res) {
           newShopsCount: allGoogleShops.length,
           newMatchesFound: matches.length,
           sessionKey: session_key,
+          radiusUsed: finalRadius,
         },
       },
     });
@@ -951,6 +1007,7 @@ module.exports = {
   enhanceShopData,
   haversineDistance,
   normalizeName,
+  determineRadius, // New function export
   compareShops, // Starts multi-query search
   getMoreShops, // Continues multi-query search
   clearPaginationTokens, // Clear tokens and sessions
