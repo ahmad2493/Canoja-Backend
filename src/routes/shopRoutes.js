@@ -1,6 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const shopController = require("../controllers/shopController");
+const {
+  validateCompareShops,
+  handleValidationErrors,
+} = require("../middleware/validateCompareShops");
 
 /**
  * @swagger
@@ -63,7 +67,12 @@ router.post("/compare-shops", shopController.compareShops);
  *       500:
  *         description: Internal server error
  */
-router.post("/compare-shops/more", shopController.getMoreShops);
+router.post(
+  "/compare-shops/more",
+  validateCompareShops,
+  handleValidationErrors,
+  shopController.getMoreShops,
+);
 
 /**
  * @swagger

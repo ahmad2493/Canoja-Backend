@@ -1,6 +1,5 @@
 const { body, validationResult } = require("express-validator");
 
-// Validation rules for compare shops endpoint
 const validateCompareShops = [
   body("lat")
     .isFloat({ min: -90, max: 90 })
@@ -9,6 +8,27 @@ const validateCompareShops = [
   body("lng")
     .isFloat({ min: -180, max: 180 })
     .withMessage("Longitude must be a number between -180 and 180"),
+
+  body("state")
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ min: 1, max: 50 })
+    .withMessage("State must be a string between 1 and 50 characters"),
+
+  body("city")
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ min: 1, max: 100 })
+    .withMessage("City must be a string between 1 and 100 characters"),
+
+  body("zip")
+    .optional()
+    .isString()
+    .trim()
+    .matches(/^\d{5}(-\d{4})?$/)
+    .withMessage("Zip code must be in format 12345 or 12345-6789"),
 
   body("radius")
     .optional()

@@ -8,12 +8,19 @@ dotenv.config();
 // Import configuration and routes
 const database = require("./config/database");
 const shopRoutes = require("./routes/shopRoutes");
+const adminRoutes = require("./routes/adminRoutes");
 const { swaggerUi, swaggerSpec } = require("./swagger");
 
 const app = express();
 
+const corsOptions = {
+  origin: ["http://localhost:5173"], // frontend origin
+  credentials: true, // allow cookies / auth headers
+  optionsSuccessStatus: 200,
+};
+
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -23,6 +30,7 @@ database.connect();
 // Routes
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use("/api/shops", shopRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Health check endpoint
 app.get("/health", (req, res) => {
