@@ -1,12 +1,13 @@
 const VerificationRequest = require("../models/VerificationRequest");
 const LicenseRecord = require("../models/licenseRecord");
+const User = require("../models/User");
 
 // =============================================================================
 // BUSINESS CLAIM CONTROLLERS
 // =============================================================================
 
 /**
- * Create claim request (when user clicks "Is this your business?")
+ * Create claim request
  */
 const createClaimRequest = async (req, res) => {
   try {
@@ -37,13 +38,14 @@ const createClaimRequest = async (req, res) => {
     }
 
     // Determine if verification is also needed
-    const needsVerification = !licenseRecord.canoja_verified;
+    const needsVerification = !licenseRecord.canojaVerified;
 
     // Create verification request first if needed
     if (needsVerification) {
       const verificationRequest = new VerificationRequest({
         pharmacy: licenseRecordId,
         requestType: "verify",
+        userId,
         adminVerifiedRequired: true,
         notes: `Verification requested by user ${userId} as part of claim process`,
       });
@@ -54,6 +56,7 @@ const createClaimRequest = async (req, res) => {
     const claimRequest = new VerificationRequest({
       pharmacy: licenseRecordId,
       requestType: "claim",
+      userId,
       adminVerifiedRequired: true,
       notes: `Claim requested by user ${userId}`,
     });
@@ -129,13 +132,36 @@ const approveRequest = async (req, res) => {
 
     // Update request status
     request.status = "approved";
+    request.adminVerifiedRequired = false;
     await request.save();
 
     // If it's a verification request, update the license record
     if (request.requestType === "verify") {
       await LicenseRecord.findByIdAndUpdate(request.pharmacy._id, {
-        canoja_verified: true,
+        canojaVerified: true,
+        adminVerificationRequired: false,
       });
+    }
+
+    if (request.requestType === "claim") {
+      try {
+        await User.findByIdAndUpdate(request.userId, {
+          role: "operator",
+          $addToSet: { licenseRecords: request.pharmacy._id },
+        });
+        // Update license record to mark as claimed
+        await LicenseRecord.findByIdAndUpdate(request.pharmacy._id, {
+          claimed: true,
+        });
+      } catch (updateError) {
+        return res.json({
+          success: true,
+          message: `${request.requestType} request approved, but failed to update user role`,
+          request,
+          userRoleUpdated: false,
+          error: updateError.message,
+        });
+      }
     }
 
     res.json({

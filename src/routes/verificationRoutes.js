@@ -6,7 +6,7 @@ const {
   adminMiddleware,
 } = require("../middleware/authMiddleware");
 
-// User routes (require authentication)
+// User routes
 router.post(
   "/claim",
   authMiddleware,

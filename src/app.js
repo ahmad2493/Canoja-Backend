@@ -17,7 +17,7 @@ const { swaggerUi, swaggerSpec } = require("./swagger");
 const app = express();
 
 const corsOptions = {
-  origin: ["http://localhost:5173"], // frontend origin
+  origin: ["http://54.227.140.191:5173", "http://localhost:5173"], // frontend origin
   credentials: true, // allow cookies / auth headers
   optionsSuccessStatus: 200,
 };

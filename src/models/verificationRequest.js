@@ -21,6 +21,9 @@ const verificationRequestSchema = new mongoose.Schema(
       enum: ["claim", "verify"],
       default: "claim",
     },
+    userId: {
+      type: String,
+    },
     notes: {
       type: String,
     },

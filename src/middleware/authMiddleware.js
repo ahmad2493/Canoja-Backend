@@ -47,7 +47,7 @@ const adminMiddleware = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const admin = await Admin.findById(decoded.userId).select("-password");
+    const admin = await User.findById(decoded.userId).select("-password");
 
     if (!admin) {
       return res.status(401).json({
