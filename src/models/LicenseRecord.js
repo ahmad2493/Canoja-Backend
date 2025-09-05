@@ -2,6 +2,10 @@ const mongoose = require("mongoose");
 
 const licenseRecordSchema = new mongoose.Schema(
   {
+    googlePlaceId: {
+      type: String,
+      default: null,
+    },
     business_name: String,
     license_number: String,
     stateName: String,
@@ -30,6 +34,15 @@ const licenseRecordSchema = new mongoose.Schema(
     filing_documents_url: String,
     license_conditions: [String],
     claimed: { type: Boolean, default: false },
+    claimedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    claimedAt: {
+      type: Date,
+      default: null,
+    },
     canojaVerified: { type: Boolean, default: false },
     adminVerificationRequired: { type: Boolean, default: false },
     featured: { type: Boolean, default: false },

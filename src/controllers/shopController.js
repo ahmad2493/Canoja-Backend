@@ -1001,16 +1001,52 @@ async function testDatabase(req, res) {
   }
 }
 
+async function getShopDetails(req, res) {
+  try {
+    const { shopId } = req.params;
+
+    if (!shopId) {
+      return res.status(400).json({
+        success: false,
+        error: "Shop ID is required",
+      });
+    }
+
+    const licenseRecord = await LicenseRecord.findById(shopId);
+
+    if (!licenseRecord) {
+      return res.status(404).json({
+        success: false,
+        error: "Shop not found",
+        message: "No license record found with the provided ID",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: licenseRecord,
+    });
+  } catch (error) {
+    console.error("Error fetching shop details:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch shop details",
+      details: error.message,
+    });
+  }
+}
+
 module.exports = {
   getPlaceDetails,
   getPhotoUrl,
   enhanceShopData,
   haversineDistance,
   normalizeName,
-  determineRadius, // New function export
-  compareShops, // Starts multi-query search
-  getMoreShops, // Continues multi-query search
-  clearPaginationTokens, // Clear tokens and sessions
-  getSessionStatus, // Get session status
+  determineRadius,
+  compareShops,
+  getMoreShops,
+  clearPaginationTokens,
+  getSessionStatus,
   testDatabase,
+  getShopDetails,
 };
