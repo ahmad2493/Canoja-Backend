@@ -1,0 +1,754 @@
+[
+  {
+    "business_name": "Apollon Formularies Jamaica Limited",
+    "license_number": null,
+    "stateName": "Jamaica",
+    "city": "Westmoreland",
+    "business_address": "Volume 1526 Folio 184, 1 1A & 2, West End Road, Negril P.O. in the parish of Westmoreland",
+    "contact_information": {
+      "phone": null,
+      "email": null,
+      "website": null
+    },
+    "owner": {
+      "name": "Apollon Formularies Jamaica Limited",
+      "email": null,
+      "role": "Owner",
+      "phone": null,
+      "govt_issued_id": null
+    },
+    "operator_name": "Apollon Formularies Jamaica Limited",
+    "issue_date": null,
+    "expiration_date": "2025-01-12T00:00:00",
+    "license_type": "retail",
+    "license_status": "Active",
+    "jurisdiction": "Jamaica",
+    "regulatory_body": "Cannabis Licensing Authority (CLA)",
+    "entity_type": [
+      "retail"
+    ],
+    "filing_documents_url": null,
+    "license_conditions": [],
+    "claimed": false,
+    "claimedBy": null,
+    "claimedAt": null,
+    "canojaVerified": true,
+    "adminVerificationRequired": false,
+    "featured": false,
+    "dba": "Apollon Formularies Jamaica Limited",
+    "state_license_document": null,
+    "utility_bill": null,
+    "gps_validation": false,
+    "location": {
+      "type": "Point",
+      "coordinates": []
+    },
+    "smoke_shop": false,
+    "original_license_type": "Retail (Therapeutic Services)"
+  },
+  {
+    "business_name": "Apollon Formularies Jamaica Limited",
+    "license_number": null,
+    "stateName": "Jamaica",
+    "city": "Westmoreland",
+    "business_address": "Volume 1526 Folio 184, 1 1A & 2, West End Road, Negril P.O. in the parish of Westmoreland",
+    "contact_information": {
+      "phone": null,
+      "email": null,
+      "website": null
+    },
+    "owner": {
+      "name": "Apollon Formularies Jamaica Limited",
+      "email": null,
+      "role": "Owner",
+      "phone": null,
+      "govt_issued_id": null
+    },
+    "operator_name": "Apollon Formularies Jamaica Limited",
+    "issue_date": null,
+    "expiration_date": "2025-01-12T00:00:00",
+    "license_type": "processing",
+    "license_status": "Active",
+    "jurisdiction": "Jamaica",
+    "regulatory_body": "Cannabis Licensing Authority (CLA)",
+    "entity_type": [
+      "processing"
+    ],
+    "filing_documents_url": null,
+    "license_conditions": [],
+    "claimed": false,
+    "claimedBy": null,
+    "claimedAt": null,
+    "canojaVerified": true,
+    "adminVerificationRequired": false,
+    "featured": false,
+    "dba": "Apollon Formularies Jamaica Limited",
+    "state_license_document": null,
+    "utility_bill": null,
+    "gps_validation": false,
+    "location": {
+      "type": "Point",
+      "coordinates": []
+    },
+    "smoke_shop": false,
+    "original_license_type": "Processing (Tier 1)"
+  },
+  {
+    "business_name": "Castleblack Cannabis Limited",
+    "license_number": null,
+    "stateName": "Jamaica",
+    "city": "St. Mary",
+    "business_address": "Lot 104 Nutfield, Islington P.O., St. Mary",
+    "contact_information": {
+      "phone": null,
+      "email": null,
+      "website": null
+    },
+    "owner": {
+      "name": "Castleblack Cannabis Limited",
+      "email": null,
+      "role": "Owner",
+      "phone": null,
+      "govt_issued_id": null
+    },
+    "operator_name": "Castleblack Cannabis Limited",
+    "issue_date": null,
+    "expiration_date": "2025-02-14T00:00:00",
+    "license_type": "distribution",
+    "license_status": "Active",
+    "jurisdiction": "Jamaica",
+    "regulatory_body": "Cannabis Licensing Authority (CLA)",
+    "entity_type": [
+      "distribution"
+    ],
+    "filing_documents_url": null,
+    "license_conditions": [],
+    "claimed": false,
+    "claimedBy": null,
+    "claimedAt": null,
+    "canojaVerified": true,
+    "adminVerificationRequired": false,
+    "featured": false,
+    "dba": "Castleblack Cannabis Limited",
+    "state_license_document": null,
+    "utility_bill": null,
+    "gps_validation": false,
+    "location": {
+      "type": "Point",
+      "coordinates": []
+    },
+    "smoke_shop": false,
+    "original_license_type": "Transport"
+  },
+  {
+    "business_name": "Haslam HG Enterprize Limited",
+    "license_number": null,
+    "stateName": "Jamaica",
+    "city": null,
+    "business_address": null,
+    "contact_information": {
+      "phone": null,
+      "email": null,
+      "website": null
+    },
+    "owner": {
+      "name": "Haslam HG Enterprize Limited",
+      "email": null,
+      "role": "Owner",
+      "phone": null,
+      "govt_issued_id": null
+    },
+    "operator_name": "Haslam HG Enterprize Limited",
+    "issue_date": null,
+    "expiration_date": "2025-09-13T00:00:00",
+    "license_type": "distribution",
+    "license_status": "Active",
+    "jurisdiction": "Jamaica",
+    "regulatory_body": "Cannabis Licensing Authority (CLA)",
+    "entity_type": [
+      "distribution"
+    ],
+    "filing_documents_url": null,
+    "license_conditions": [],
+    "claimed": false,
+    "claimedBy": null,
+    "claimedAt": null,
+    "canojaVerified": true,
+    "adminVerificationRequired": false,
+    "featured": false,
+    "dba": "Haslam HG Enterprize Limited",
+    "state_license_document": null,
+    "utility_bill": null,
+    "gps_validation": false,
+    "location": {
+      "type": "Point",
+      "coordinates": []
+    },
+    "smoke_shop": false,
+    "original_license_type": "Transport"
+  },
+  {
+    "business_name": "Haslam HG Enterprize Limited",
+    "license_number": null,
+    "stateName": "Jamaica",
+    "city": "Kingston",
+    "business_address": "Volume 1491 Folio 37, Lot/Apt 1+, Shop No. 14, 12A Molynes Road, Kingston 10, Saint Andrew",
+    "contact_information": {
+      "phone": null,
+      "email": null,
+      "website": null
+    },
+    "owner": {
+      "name": "Haslam HG Enterprize Limited",
+      "email": null,
+      "role": "Owner",
+      "phone": null,
+      "govt_issued_id": null
+    },
+    "operator_name": "Haslam HG Enterprize Limited",
+    "issue_date": null,
+    "expiration_date": "2026-02-01T00:00:00",
+    "license_type": "retail",
+    "license_status": "Active",
+    "jurisdiction": "Jamaica",
+    "regulatory_body": "Cannabis Licensing Authority (CLA)",
+    "entity_type": [
+      "retail"
+    ],
+    "filing_documents_url": null,
+    "license_conditions": [],
+    "claimed": false,
+    "claimedBy": null,
+    "claimedAt": null,
+    "canojaVerified": true,
+    "adminVerificationRequired": false,
+    "featured": false,
+    "dba": "Haslam HG Enterprize Limited",
+    "state_license_document": null,
+    "utility_bill": null,
+    "gps_validation": false,
+    "location": {
+      "type": "Point",
+      "coordinates": []
+    },
+    "smoke_shop": false,
+    "original_license_type": "Retail (Herb House-Without Facilities for Consumption) Licence"
+  },
+  {
+    "business_name": "Hedoweedo Limited",
+    "license_number": null,
+    "stateName": "Jamaica",
+    "city": "Westmoreland",
+    "business_address": "Rutland Point, Negril P.O., Westmoreland",
+    "contact_information": {
+      "phone": null,
+      "email": null,
+      "website": null
+    },
+    "owner": {
+      "name": "Hedoweedo Limited",
+      "email": null,
+      "role": "Owner",
+      "phone": null,
+      "govt_issued_id": null
+    },
+    "operator_name": "Hedoweedo Limited",
+    "issue_date": null,
+    "expiration_date": "2026-06-29T00:00:00",
+    "license_type": "retail",
+    "license_status": "Active",
+    "jurisdiction": "Jamaica",
+    "regulatory_body": "Cannabis Licensing Authority (CLA)",
+    "entity_type": [
+      "retail"
+    ],
+    "filing_documents_url": null,
+    "license_conditions": [],
+    "claimed": false,
+    "claimedBy": null,
+    "claimedAt": null,
+    "canojaVerified": true,
+    "adminVerificationRequired": false,
+    "featured": false,
+    "dba": "Hedoweedo Limited",
+    "state_license_document": null,
+    "utility_bill": null,
+    "gps_validation": false,
+    "location": {
+      "type": "Point",
+      "coordinates": []
+    },
+    "smoke_shop": false,
+    "original_license_type": "Retail (Herb House) Licence"
+  },
+  {
+    "business_name": "Island Kaya Farms",
+    "license_number": null,
+    "stateName": "Jamaica",
+    "city": "Saint Ann",
+    "business_address": "Greenwich Park, St Ann’s Bay P.O., in the parish of Saint Ann",
+    "contact_information": {
+      "phone": null,
+      "email": null,
+      "website": null
+    },
+    "owner": {
+      "name": "Island Kaya Farms",
+      "email": null,
+      "role": "Owner",
+      "phone": null,
+      "govt_issued_id": null
+    },
+    "operator_name": "Island Kaya Farms",
+    "issue_date": null,
+    "expiration_date": "2025-03-23T00:00:00",
+    "license_type": "cultivation",
+    "license_status": "Active",
+    "jurisdiction": "Jamaica",
+    "regulatory_body": "Cannabis Licensing Authority (CLA)",
+    "entity_type": [
+      "cultivation"
+    ],
+    "filing_documents_url": null,
+    "license_conditions": [],
+    "claimed": false,
+    "claimedBy": null,
+    "claimedAt": null,
+    "canojaVerified": true,
+    "adminVerificationRequired": false,
+    "featured": false,
+    "dba": "Island Kaya Farms",
+    "state_license_document": null,
+    "utility_bill": null,
+    "gps_validation": false,
+    "location": {
+      "type": "Point",
+      "coordinates": []
+    },
+    "smoke_shop": false,
+    "original_license_type": "Cultivator’s (Tier 2) Licence"
+  },
+  {
+    "business_name": "Island Strains",
+    "license_number": null,
+    "stateName": "Jamaica",
+    "city": "St. James",
+    "business_address": "Casa Blanca Hotel, Jimmy Cliff Boulevard, White Sands Beach P.O., Montego Bay, St. James",
+    "contact_information": {
+      "phone": null,
+      "email": null,
+      "website": null
+    },
+    "owner": {
+      "name": "Island Strains",
+      "email": null,
+      "role": "Owner",
+      "phone": null,
+      "govt_issued_id": null
+    },
+    "operator_name": "Island Strains",
+    "issue_date": null,
+    "expiration_date": "2024-10-14T00:00:00",
+    "license_type": "retail",
+    "license_status": "Active",
+    "jurisdiction": "Jamaica",
+    "regulatory_body": "Cannabis Licensing Authority (CLA)",
+    "entity_type": [
+      "retail"
+    ],
+    "filing_documents_url": null,
+    "license_conditions": [],
+    "claimed": false,
+    "claimedBy": null,
+    "claimedAt": null,
+    "canojaVerified": true,
+    "adminVerificationRequired": false,
+    "featured": false,
+    "dba": "Island Strains",
+    "state_license_document": null,
+    "utility_bill": null,
+    "gps_validation": false,
+    "location": {
+      "type": "Point",
+      "coordinates": []
+    },
+    "smoke_shop": false,
+    "original_license_type": "Retail (Herb House) Licence"
+  },
+  {
+    "business_name": "Kaya Extracts Limited",
+    "license_number": null,
+    "stateName": "Jamaica",
+    "city": "Saint Ann",
+    "business_address": "Greenwich Park, Saint Ann’s Bay P.O., in the parish of Saint Ann",
+    "contact_information": {
+      "phone": null,
+      "email": null,
+      "website": null
+    },
+    "owner": {
+      "name": "Kaya Extracts Limited",
+      "email": null,
+      "role": "Owner",
+      "phone": null,
+      "govt_issued_id": null
+    },
+    "operator_name": "Kaya Extracts Limited",
+    "issue_date": null,
+    "expiration_date": "2026-01-18T00:00:00",
+    "license_type": "processing",
+    "license_status": "Active",
+    "jurisdiction": "Jamaica",
+    "regulatory_body": "Cannabis Licensing Authority (CLA)",
+    "entity_type": [
+      "processing"
+    ],
+    "filing_documents_url": null,
+    "license_conditions": [],
+    "claimed": false,
+    "claimedBy": null,
+    "claimedAt": null,
+    "canojaVerified": true,
+    "adminVerificationRequired": false,
+    "featured": false,
+    "dba": "Kaya Extracts Limited",
+    "state_license_document": null,
+    "utility_bill": null,
+    "gps_validation": false,
+    "location": {
+      "type": "Point",
+      "coordinates": []
+    },
+    "smoke_shop": false,
+    "original_license_type": "Processing (Tier 1) Licence"
+  },
+  {
+    "business_name": "“4/20 Ganjabliss Dispensary”",
+    "license_number": null,
+    "stateName": "Jamaica",
+    "city": "Saint Ann",
+    "business_address": "Volume 1454 Folio 933, Cave Hall Pen, Discovery Bay P.O., in the parish of Saint Ann",
+    "contact_information": {
+      "phone": null,
+      "email": null,
+      "website": null
+    },
+    "owner": {
+      "name": "“4/20 Ganjabliss Dispensary”",
+      "email": null,
+      "role": "Owner",
+      "phone": null,
+      "govt_issued_id": null
+    },
+    "operator_name": "“4/20 Ganjabliss Dispensary”",
+    "issue_date": null,
+    "expiration_date": "2027-04-18T00:00:00",
+    "license_type": "retail",
+    "license_status": "Active",
+    "jurisdiction": "Jamaica",
+    "regulatory_body": "Cannabis Licensing Authority (CLA)",
+    "entity_type": [
+      "retail"
+    ],
+    "filing_documents_url": null,
+    "license_conditions": [],
+    "claimed": false,
+    "claimedBy": null,
+    "claimedAt": null,
+    "canojaVerified": true,
+    "adminVerificationRequired": false,
+    "featured": false,
+    "dba": "“4/20 Ganjabliss Dispensary”",
+    "state_license_document": null,
+    "utility_bill": null,
+    "gps_validation": false,
+    "location": {
+      "type": "Point",
+      "coordinates": []
+    },
+    "smoke_shop": false,
+    "original_license_type": "Retail (Herb House-Without Facilities for Consumption)"
+  },
+  {
+    "business_name": "“4/20 Therapeutic Bliss”",
+    "license_number": null,
+    "stateName": "Jamaica",
+    "city": "Saint Ann",
+    "business_address": "Volume 1540 Folio 666, Lot 1 Beverley, Runaway Bay P.O., in the parish of Saint Ann",
+    "contact_information": {
+      "phone": null,
+      "email": null,
+      "website": null
+    },
+    "owner": {
+      "name": "“4/20 Therapeutic Bliss”",
+      "email": null,
+      "role": "Owner",
+      "phone": null,
+      "govt_issued_id": null
+    },
+    "operator_name": "“4/20 Therapeutic Bliss”",
+    "issue_date": null,
+    "expiration_date": "2027-01-15T00:00:00",
+    "license_type": "retail",
+    "license_status": "Active",
+    "jurisdiction": "Jamaica",
+    "regulatory_body": "Cannabis Licensing Authority (CLA)",
+    "entity_type": [
+      "retail"
+    ],
+    "filing_documents_url": null,
+    "license_conditions": [],
+    "claimed": false,
+    "claimedBy": null,
+    "claimedAt": null,
+    "canojaVerified": true,
+    "adminVerificationRequired": false,
+    "featured": false,
+    "dba": "“4/20 Therapeutic Bliss”",
+    "state_license_document": null,
+    "utility_bill": null,
+    "gps_validation": false,
+    "location": {
+      "type": "Point",
+      "coordinates": []
+    },
+    "smoke_shop": false,
+    "original_license_type": "Retail (Herb House-Without Facilities for Consumption)"
+  },
+  {
+    "business_name": "Mez Herbal Jamaica Limited",
+    "license_number": null,
+    "stateName": "Jamaica",
+    "city": "Kingston",
+    "business_address": "Shop 19, Orchid Village, 20 Barbican Road, Kingston 6, St. Andrew.",
+    "contact_information": {
+      "phone": null,
+      "email": null,
+      "website": null
+    },
+    "owner": {
+      "name": "Mez Herbal Jamaica Limited",
+      "email": null,
+      "role": "Owner",
+      "phone": null,
+      "govt_issued_id": null
+    },
+    "operator_name": "Mez Herbal Jamaica Limited",
+    "issue_date": null,
+    "expiration_date": "2024-09-16T00:00:00",
+    "license_type": "retail",
+    "license_status": "Active",
+    "jurisdiction": "Jamaica",
+    "regulatory_body": "Cannabis Licensing Authority (CLA)",
+    "entity_type": [
+      "retail"
+    ],
+    "filing_documents_url": null,
+    "license_conditions": [],
+    "claimed": false,
+    "claimedBy": null,
+    "claimedAt": null,
+    "canojaVerified": true,
+    "adminVerificationRequired": false,
+    "featured": false,
+    "dba": "Mez Herbal Jamaica Limited",
+    "state_license_document": null,
+    "utility_bill": null,
+    "gps_validation": false,
+    "location": {
+      "type": "Point",
+      "coordinates": []
+    },
+    "smoke_shop": false,
+    "original_license_type": "Retail (Herb House-Without Facilities for Consumption)"
+  },
+  {
+    "business_name": "Mr. P Tuff Buds",
+    "license_number": null,
+    "stateName": "Jamaica",
+    "city": "Kingston",
+    "business_address": "Volume 1502 Folio 391, Shop No. 29 Washington Plaza Lot 1+Patrick City, 26-32 Auburn Terrace,                                      Kingston 20, Saint Andrew",
+    "contact_information": {
+      "phone": null,
+      "email": null,
+      "website": null
+    },
+    "owner": {
+      "name": "Mr. P Tuff Buds",
+      "email": null,
+      "role": "Owner",
+      "phone": null,
+      "govt_issued_id": null
+    },
+    "operator_name": "Mr. P Tuff Buds",
+    "issue_date": null,
+    "expiration_date": "2027-04-24T00:00:00",
+    "license_type": "retail",
+    "license_status": "Active",
+    "jurisdiction": "Jamaica",
+    "regulatory_body": "Cannabis Licensing Authority (CLA)",
+    "entity_type": [
+      "retail"
+    ],
+    "filing_documents_url": null,
+    "license_conditions": [],
+    "claimed": false,
+    "claimedBy": null,
+    "claimedAt": null,
+    "canojaVerified": true,
+    "adminVerificationRequired": false,
+    "featured": false,
+    "dba": "Mr. P Tuff Buds",
+    "state_license_document": null,
+    "utility_bill": null,
+    "gps_validation": false,
+    "location": {
+      "type": "Point",
+      "coordinates": []
+    },
+    "smoke_shop": false,
+    "original_license_type": "Retail (Herb House-Without Facilities for Consumption)"
+  },
+  {
+    "business_name": "Outlier Bio-Pharma Limited",
+    "license_number": null,
+    "stateName": "Jamaica",
+    "city": "St. James",
+    "business_address": "Shop 41 Blue Diamond Shopping Centre, Lot/Apt 1+ Ironshore, Morgan Road, Little River P.O., Montego Bay, in the parish of St. James",
+    "contact_information": {
+      "phone": null,
+      "email": null,
+      "website": null
+    },
+    "owner": {
+      "name": "Outlier Bio-Pharma Limited",
+      "email": null,
+      "role": "Owner",
+      "phone": null,
+      "govt_issued_id": null
+    },
+    "operator_name": "Outlier Bio-Pharma Limited",
+    "issue_date": null,
+    "expiration_date": "2026-04-20T00:00:00",
+    "license_type": "processing",
+    "license_status": "Active",
+    "jurisdiction": "Jamaica",
+    "regulatory_body": "Cannabis Licensing Authority (CLA)",
+    "entity_type": [
+      "processing"
+    ],
+    "filing_documents_url": null,
+    "license_conditions": [],
+    "claimed": false,
+    "claimedBy": null,
+    "claimedAt": null,
+    "canojaVerified": true,
+    "adminVerificationRequired": false,
+    "featured": false,
+    "dba": "Outlier Bio-Pharma Limited",
+    "state_license_document": null,
+    "utility_bill": null,
+    "gps_validation": false,
+    "location": {
+      "type": "Point",
+      "coordinates": []
+    },
+    "smoke_shop": false,
+    "original_license_type": "Processing (Tier 1) Licence"
+  },
+  {
+    "business_name": "Outlier Bio-Pharma Limited",
+    "license_number": null,
+    "stateName": "Jamaica",
+    "city": "St. James",
+    "business_address": "Shop EU7 Whitter Village Centre, Lot/Apt. 1 Ironshore Section 2A, Little River P.O., Montego Bay, in the parish of St. James",
+    "contact_information": {
+      "phone": null,
+      "email": null,
+      "website": null
+    },
+    "owner": {
+      "name": "Outlier Bio-Pharma Limited",
+      "email": null,
+      "role": "Owner",
+      "phone": null,
+      "govt_issued_id": null
+    },
+    "operator_name": "Outlier Bio-Pharma Limited",
+    "issue_date": null,
+    "expiration_date": "2026-04-20T00:00:00",
+    "license_type": "retail",
+    "license_status": "Active",
+    "jurisdiction": "Jamaica",
+    "regulatory_body": "Cannabis Licensing Authority (CLA)",
+    "entity_type": [
+      "retail"
+    ],
+    "filing_documents_url": null,
+    "license_conditions": [],
+    "claimed": false,
+    "claimedBy": null,
+    "claimedAt": null,
+    "canojaVerified": true,
+    "adminVerificationRequired": false,
+    "featured": false,
+    "dba": "Outlier Bio-Pharma Limited",
+    "state_license_document": null,
+    "utility_bill": null,
+    "gps_validation": false,
+    "location": {
+      "type": "Point",
+      "coordinates": []
+    },
+    "smoke_shop": false,
+    "original_license_type": "Retail (Herb House-Without Facilities for Consumption) Licence"
+  },
+  {
+    "business_name": "Target Agricultural Corp Limited",
+    "license_number": null,
+    "stateName": "Jamaica",
+    "city": "Manchester",
+    "business_address": "Valutaion No. 083-05-003-078, Craig Head, Craig Head P.O. Manchester",
+    "contact_information": {
+      "phone": null,
+      "email": null,
+      "website": null
+    },
+    "owner": {
+      "name": "Target Agricultural Corp Limited",
+      "email": null,
+      "role": "Owner",
+      "phone": null,
+      "govt_issued_id": null
+    },
+    "operator_name": "Target Agricultural Corp Limited",
+    "issue_date": null,
+    "expiration_date": "2025-05-30T00:00:00",
+    "license_type": "cultivation",
+    "license_status": "Active",
+    "jurisdiction": "Jamaica",
+    "regulatory_body": "Cannabis Licensing Authority (CLA)",
+    "entity_type": [
+      "cultivation"
+    ],
+    "filing_documents_url": null,
+    "license_conditions": [],
+    "claimed": false,
+    "claimedBy": null,
+    "claimedAt": null,
+    "canojaVerified": true,
+    "adminVerificationRequired": false,
+    "featured": false,
+    "dba": "Target Agricultural Corp Limited",
+    "state_license_document": null,
+    "utility_bill": null,
+    "gps_validation": false,
+    "location": {
+      "type": "Point",
+      "coordinates": []
+    },
+    "smoke_shop": false,
+    "original_license_type": "Cultivator (Tier 1)"
+  }
+]

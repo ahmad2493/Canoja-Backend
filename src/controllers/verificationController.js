@@ -1,6 +1,6 @@
-const VerificationRequest = require("../models/VerificationRequest");
+const VerificationRequest = require("../models/verificationRequest");
 const LicenseRecord = require("../models/licenseRecord");
-const User = require("../models/User");
+const User = require("../models/user");
 const upload = require("../utils/s3Upload");
 
 const uploadFields = upload.fields([
