@@ -4,7 +4,7 @@ const LicenseRecord = require("../models/licenseRecord");
 // Configuration
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_API_KEY;
 
-// Search queries to use
+// Default search queries (used when no operator type specified)
 const SEARCH_QUERIES = [
   "Cannabis shop",
   "Smoke Shop",
@@ -16,7 +16,65 @@ const SEARCH_QUERIES = [
 
 // In-memory storage for pagination tokens and query state
 const paginationTokens = new Map();
-const queryStates = new Map(); // Track which query we're currently on for each search
+const queryStates = new Map();
+
+// --- Text Search (keyword-only, like Google Maps) ---
+async function textSearchShops(keyword, filters) {
+  try {
+    console.log(`Text search for: "${keyword}"`);
+
+    // Generate cannabis-specific queries
+    const baseQueries = generateSearchQueries(filters.operatorType, filters);
+    const keywordQueries = baseQueries.map((q) => `${keyword} ${q}`);
+
+    let allResults = [];
+
+    // Execute each query using Text Search API
+    for (const query of keywordQueries) {
+      let url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${GOOGLE_MAPS_API_KEY}`;
+
+      // Add region bias (optional - restricts to country)
+      url += "&region=us";
+
+      // Add opennow if needed
+      if (filters.openNow) {
+        url += "&opennow";
+      }
+
+      console.log(`Executing text search: "${query}"`);
+      const response = await axios.get(url);
+
+      if (response.data.results && response.data.results.length > 0) {
+        allResults.push(...response.data.results);
+      }
+
+      // Rate limiting
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+
+    // Remove duplicates
+    const uniqueResults = [];
+    const seenPlaceIds = new Set();
+
+    for (const place of allResults) {
+      if (!seenPlaceIds.has(place.place_id)) {
+        seenPlaceIds.add(place.place_id);
+        uniqueResults.push(place);
+      }
+    }
+
+    console.log(`Text search total unique results: ${uniqueResults.length}`);
+
+    return {
+      results: uniqueResults,
+      queries_used: keywordQueries,
+      total_results: uniqueResults.length,
+    };
+  } catch (error) {
+    console.error("Text search error:", error.message);
+    throw error;
+  }
+}
 
 // --- Get Place Details for additional info ---
 async function getPlaceDetails(placeId) {
@@ -56,13 +114,15 @@ function generateQueryPaginationKey(lat, lng, radius, query) {
 }
 
 // --- Initialize query state for a search session ---
-function initializeQueryState(lat, lng, radius) {
+function initializeQueryStateWithFilters(lat, lng, radius, queries, filters) {
   const sessionKey = generatePaginationKey(lat, lng, radius);
   queryStates.set(sessionKey, {
     currentQueryIndex: 0,
-    usedPlaceIds: new Set(), // Track already seen places to avoid duplicates
-    queriesExhausted: new Set(), // Track which queries have no more results
+    usedPlaceIds: new Set(),
+    queriesExhausted: new Set(),
     totalFetched: 0,
+    customQueries: queries,
+    filters: filters,
   });
   return sessionKey;
 }
@@ -70,21 +130,168 @@ function initializeQueryState(lat, lng, radius) {
 // --- Get current query for session ---
 function getCurrentQuery(sessionKey) {
   const state = queryStates.get(sessionKey);
-  if (!state || state.currentQueryIndex >= SEARCH_QUERIES.length) {
-    return null;
-  }
-  return SEARCH_QUERIES[state.currentQueryIndex];
+  if (!state) return null;
+
+  const queries = state.customQueries || SEARCH_QUERIES;
+  if (state.currentQueryIndex >= queries.length) return null;
+
+  return queries[state.currentQueryIndex];
 }
 
 // --- Move to next query ---
 function moveToNextQuery(sessionKey) {
   const state = queryStates.get(sessionKey);
   if (state) {
+    const queries = state.customQueries || SEARCH_QUERIES;
     state.currentQueryIndex++;
-    console.log(
-      `Moving to next query: ${getCurrentQuery(sessionKey) || "No more queries"}`,
-    );
+    const nextQuery =
+      state.currentQueryIndex < queries.length
+        ? queries[state.currentQueryIndex]
+        : null;
+    console.log(`Moving to next query: ${nextQuery || "No more queries"}`);
   }
+}
+
+// --- Generate search queries based on operator type and filters ---
+function generateSearchQueries(operatorType, filters) {
+  // If smoke shop filter is active, prioritize smoke shop queries
+  if (filters.smokeShop) {
+    return ["Smoke Shop", "Head shop", "Tobacco shop", "Vape shop"];
+  }
+
+  // If no operator type, return default queries
+  if (!operatorType) {
+    return SEARCH_QUERIES;
+  }
+
+  const queryMap = {
+    "Adult Use Retail Dispensary": [
+      "Cannabis dispensary",
+      "Marijuana dispensary",
+      "Recreational cannabis",
+      "Cannabis shop",
+    ],
+    "Medical Marijuana Dispensary": [
+      "Medical marijuana dispensary",
+      "Medical cannabis dispensary",
+      "MMJ dispensary",
+    ],
+    "Medical Marijuana Treatment Center": [
+      "Medical marijuana treatment",
+      "Cannabis treatment center",
+      "MMJ treatment",
+    ],
+    "MMJ Operator": ["Medical marijuana", "MMJ", "Medical cannabis"],
+    "RMJ Operator": [
+      "Recreational marijuana",
+      "Adult use cannabis",
+      "Cannabis retailer",
+    ],
+  };
+
+  return queryMap[operatorType] || SEARCH_QUERIES;
+}
+
+// --- Build keyword search URL ---
+function buildKeywordSearchUrl(lat, lng, radius, keyword, filters) {
+  let url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${radius}&keyword=${encodeURIComponent(keyword)}&key=${GOOGLE_MAPS_API_KEY}`;
+
+  // Add opennow parameter if filter is active
+  if (filters.openNow) {
+    url += "&opennow";
+  }
+
+  return url;
+}
+
+// --- Apply filters to shop results ---
+function applySearchFilters(shops, filters) {
+  if (!filters || Object.keys(filters).length === 0) {
+    return shops;
+  }
+
+  return shops.filter((shop) => {
+    // Cannoja Verified - must have active license
+    if (filters.cannojaVerified) {
+      if (!shop.isMatched || shop.license_status !== "Active") {
+        return false;
+      }
+    }
+
+    // Open Now
+    if (filters.openNow && !shop.open_now) {
+      return false;
+    }
+
+    // Operator Type - match against license type
+    if (filters.operatorType && shop.matchedLicense) {
+      const licenseType = (
+        shop.matchedLicense.license_type || ""
+      ).toLowerCase();
+      const operatorType = filters.operatorType.toLowerCase();
+
+      const typeMapping = {
+        "adult use retail dispensary": [
+          "retail",
+          "dispensary",
+          "adult",
+          "recreational",
+        ],
+        "medical marijuana dispensary": ["medical", "dispensary"],
+        "medical marijuana treatment center": [
+          "medical",
+          "treatment",
+          "center",
+        ],
+        "mmj operator": ["medical", "mmj"],
+        "rmj operator": ["retail", "recreational", "adult", "rmj"],
+      };
+
+      const keywords = typeMapping[operatorType] || [operatorType];
+      const matches = keywords.some((kw) => licenseType.includes(kw));
+
+      if (!matches) return false;
+    }
+
+    // Medical filter
+    if (filters.medical) {
+      if (!shop.matchedLicense) return false;
+      const licenseType = (
+        shop.matchedLicense.license_type || ""
+      ).toLowerCase();
+      if (!licenseType.includes("medical")) return false;
+    }
+
+    // Smoke Shop - check Google Places types
+    if (filters.smokeShop) {
+      const types = (shop.types || []).map((t) => t.toLowerCase());
+      const isSmokeShop = types.some(
+        (type) =>
+          type.includes("smoke") ||
+          type.includes("tobacco") ||
+          type.includes("store"),
+      );
+      if (!isSmokeShop) return false;
+    }
+
+    // Favorites - array of place_ids
+    if (
+      filters.favorites &&
+      Array.isArray(filters.favorites) &&
+      filters.favorites.length > 0
+    ) {
+      if (!filters.favorites.includes(shop.place_id)) {
+        return false;
+      }
+    }
+
+    // Featured (you'll need to add this field to your schema)
+    if (filters.featured && !shop.is_featured) {
+      return false;
+    }
+
+    return true;
+  });
 }
 
 // --- Fetch shops with current query ---
@@ -120,6 +327,12 @@ async function fetchShopsWithCurrentQuery(
     if (isInitial || !paginationTokens.has(queryPaginationKey)) {
       // Initial search for this query
       url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${radius}&keyword=${encodeURIComponent(currentQuery)}&key=${GOOGLE_MAPS_API_KEY}`;
+
+      // Add opennow if filter is active
+      if (state.filters && state.filters.openNow) {
+        url += "&opennow";
+      }
+
       console.log(`Initial search for query: "${currentQuery}"`);
     } else {
       // Use pagination token for this query
@@ -189,10 +402,10 @@ async function fetchShopsWithCurrentQuery(
         `Fetched ${results.length} unique results for query: "${currentQuery}"`,
       );
 
-      // Check if we have more results available (either more pages for current query or more queries)
+      // Check if we have more results available
       const hasMoreInCurrentQuery = !!response.data.next_page_token;
-      const hasMoreQueries =
-        state.currentQueryIndex < SEARCH_QUERIES.length - 1;
+      const queries = state.customQueries || SEARCH_QUERIES;
+      const hasMoreQueries = state.currentQueryIndex < queries.length - 1;
       const hasMore = hasMoreInCurrentQuery || hasMoreQueries;
 
       return {
@@ -203,7 +416,7 @@ async function fetchShopsWithCurrentQuery(
         session_info: {
           current_query: currentQuery,
           current_query_index: state.currentQueryIndex,
-          total_queries: SEARCH_QUERIES.length,
+          total_queries: queries.length,
           total_fetched: state.totalFetched,
           unique_places_found: state.usedPlaceIds.size,
         },
@@ -218,7 +431,7 @@ async function fetchShopsWithCurrentQuery(
       session_info: {
         current_query: currentQuery,
         current_query_index: state.currentQueryIndex,
-        total_queries: SEARCH_QUERIES.length,
+        total_queries: state.customQueries?.length || SEARCH_QUERIES.length,
         total_fetched: state.totalFetched,
         unique_places_found: state.usedPlaceIds.size,
       },
@@ -304,7 +517,7 @@ async function getNextShopsBatch(lat, lng, radius, sessionKey) {
       ? {
           current_query: getCurrentQuery(sessionKey),
           current_query_index: state.currentQueryIndex,
-          total_queries: SEARCH_QUERIES.length,
+          total_queries: state.customQueries?.length || SEARCH_QUERIES.length,
           total_fetched: state.totalFetched,
           unique_places_found: state.usedPlaceIds.size,
         }
@@ -355,14 +568,29 @@ async function enhanceShopData(shops) {
             ? getPhotoUrl(placeDetails.photos[0].photo_reference, 400)
             : null,
 
-        photos: placeDetails.photos
-          ? placeDetails.photos.map((photo) => ({
-              photo_reference: photo.photo_reference,
-              height: photo.height,
-              width: photo.width,
-              photo_url: getPhotoUrl(photo.photo_reference, 400),
-            }))
-          : [],
+        photos:
+          placeDetails.photos && placeDetails.photos.length > 1
+            ? placeDetails.photos.slice(0, 2).map((photo) => ({
+                // FIRST 2 PHOTOS
+                photo_reference: photo.photo_reference,
+                height: photo.height,
+                width: photo.width,
+                photo_url: getPhotoUrl(photo.photo_reference, 400),
+              }))
+            : placeDetails.photos
+              ? [
+                  {
+                    // IF ONLY 1 PHOTO EXISTS
+                    photo_reference: placeDetails.photos[0].photo_reference,
+                    height: placeDetails.photos[0].height,
+                    width: placeDetails.photos[0].width,
+                    photo_url: getPhotoUrl(
+                      placeDetails.photos[0].photo_reference,
+                      400,
+                    ),
+                  },
+                ]
+              : [],
       };
 
       enhancedResults.push(enhancedPlace);
@@ -495,7 +723,7 @@ function matchShopsWithLicenses(googleShops, govRecords) {
             distance: `${Math.round(distance)}m`,
             matchType: businessNameMatch ? "business_name" : "dba",
           });
-          break; // Found a match, no need to check other records
+          break;
         }
       }
     }
@@ -506,7 +734,6 @@ function matchShopsWithLicenses(googleShops, govRecords) {
 
 async function geocodeAddress(state, city, zip) {
   try {
-    // Construct address string
     let addressString = "";
     if (city) addressString += city;
     if (state) addressString += (addressString ? ", " : "") + state;
@@ -520,7 +747,6 @@ async function geocodeAddress(state, city, zip) {
 
     console.log(`Geocoding address with OpenStreetMap: ${addressString}`);
 
-    // Use Nominatim API from OpenStreetMap
     const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addressString)}&format=json&limit=1&countrycodes=us`;
 
     const response = await axios.get(url, {
@@ -555,105 +781,129 @@ async function geocodeAddress(state, city, zip) {
   }
 }
 
-// Determine radius based on location specificity ---
 function determineRadius(state, city, zipCode, providedRadius) {
-  // If radius is explicitly provided, use it
   if (providedRadius && providedRadius !== 5000) {
     console.log(`Using provided radius: ${providedRadius}m`);
     return parseInt(providedRadius);
   }
 
-  // Determine radius based on location specificity
   if (state && city && zipCode) {
     console.log(`State + City + ZIP provided, using 6km radius`);
-    return 6000; // 6km
+    return 6000;
   } else if (state && city) {
     console.log(`State + City provided, using 20km radius`);
-    return 20000; // 20km
+    return 20000;
   } else if (state) {
-    console.log(`Only State provided, using 150km radius`);
-    return 100000; // 100km
+    console.log(`Only State provided, using 100km radius`);
+    return 100000;
   } else {
     console.log(`Using default radius: 5km`);
-    return 5000; // Default fallback
+    return 5000;
   }
 }
 
+// --- MAIN ENDPOINT: Compare Shops (handles both location-based and keyword search) ---
 async function compareShops(req, res) {
   try {
     let lat, lng, finalRadius;
-    const { radius, state, city, zipCode } = req.body;
+    const {
+      radius,
+      state,
+      city,
+      zipCode,
+      filters = {},
+      keyword = null,
+    } = req.body;
 
-    // Check if coordinates are provided directly
-    if (req.body.lat && req.body.lng) {
-      lat = parseFloat(req.body.lat);
-      lng = parseFloat(req.body.lng);
-      // Use provided radius or default to 5km for coordinate-based searches
-      finalRadius = radius ? parseInt(radius) : 5000;
-      console.log(`Using provided coordinates: lat=${lat}, lng=${lng}`);
-      console.log(
-        `Using radius: ${finalRadius}m (${radius ? "provided" : "default for coordinates"})`,
-      );
-    }
-    // If no coordinates, try to geocode from address components
-    else if (state || city || zipCode) {
-      console.log(
-        `No coordinates provided, attempting to geocode from address components`,
-      );
+    const isKeywordSearch = keyword && keyword.trim().length >= 2;
 
-      // Determine radius based on location specificity BEFORE geocoding
-      finalRadius = determineRadius(state, city, zipCode, radius);
+    // Location is OPTIONAL for keyword search, REQUIRED for location-based
+    if (!isKeywordSearch) {
+      // Location-based search requires coordinates or address
+      if (req.body.lat && req.body.lng) {
+        lat = parseFloat(req.body.lat);
+        lng = parseFloat(req.body.lng);
+        finalRadius = radius ? parseInt(radius) : 5000;
+      } else if (state || city || zipCode) {
+        finalRadius = determineRadius(state, city, zipCode, radius);
+        const geocodeResult = await geocodeAddress(state, city, zipCode);
 
-      const geocodeResult = await geocodeAddress(state, city, zipCode);
+        if (!geocodeResult.success) {
+          return res.status(400).json({
+            success: false,
+            error: "Failed to geocode address",
+          });
+        }
 
-      if (!geocodeResult.success) {
+        lat = geocodeResult.lat;
+        lng = geocodeResult.lng;
+      } else {
         return res.status(400).json({
           success: false,
-          error: "Failed to geocode address",
-          details: geocodeResult.error,
-          message:
-            "Please provide either lat/lng coordinates or valid state/city/zip",
+          error: "Location required for non-keyword searches",
         });
       }
-
-      lat = geocodeResult.lat;
-      lng = geocodeResult.lng;
-
-      console.log(
-        `Geocoding successful, using coordinates: lat=${lat}, lng=${lng}`,
-      );
-      console.log(
-        `Auto-determined radius: ${finalRadius}m based on location specificity`,
-      );
-    }
-    // If neither coordinates nor address components are provided
-    else {
-      return res.status(400).json({
-        success: false,
-        error: "Missing location data",
-        message: "Please provide either lat/lng coordinates or state/city/zip",
-      });
     }
 
-    console.log(`\n=== Starting multi-query comparison ===`);
     console.log(
-      `Final coordinates: lat=${lat}, lng=${lng}, radius=${finalRadius}`,
+      `\n=== Starting ${isKeywordSearch ? "KEYWORD" : "LOCATION-BASED"} search ===`,
     );
-    console.log(`Available queries: ${SEARCH_QUERIES.join(", ")}`);
+    console.log(`Coordinates: lat=${lat}, lng=${lng}, radius=${finalRadius}m`);
+    if (isKeywordSearch) console.log(`Keyword: "${keyword}"`);
+    console.log(`Filters:`, JSON.stringify(filters));
 
-    // Initialize query state for this search session
-    const sessionKey = initializeQueryState(lat, lng, finalRadius);
+    let enhancedShops;
+    let sessionKey = null;
+    let hasMore = false;
+    let sessionInfo = null;
 
-    // Get first batch of shops using multiple queries
-    const googleResponse = await getNextShopsBatch(
-      lat,
-      lng,
-      finalRadius,
-      sessionKey,
-    );
-    const enhancedShops = await enhanceShopData(googleResponse.results);
+    if (isKeywordSearch) {
+      // ===== TEXT SEARCH MODE (No location required) =====
+      console.log(`Starting text search for: "${keyword}"`);
 
-    // Get government records
+      // Use text search instead of nearby search
+      const textSearchResponse = await textSearchShops(keyword, filters);
+
+      enhancedShops = await enhanceShopData(textSearchResponse.results);
+      hasMore = false; // Text search returns all results at once
+      sessionKey = null; // No pagination for text search
+
+      sessionInfo = {
+        search_type: "text_search",
+        keyword: keyword,
+        queries_used: textSearchResponse.queries_used,
+        total_results: textSearchResponse.total_results,
+      };
+    } else {
+      // ===== LOCATION-BASED SEARCH MODE =====
+      const searchQueries = generateSearchQueries(
+        filters.operatorType,
+        filters,
+      );
+      sessionKey = initializeQueryStateWithFilters(
+        lat,
+        lng,
+        finalRadius,
+        searchQueries,
+        filters,
+      );
+
+      const googleResponse = await getNextShopsBatch(
+        lat,
+        lng,
+        finalRadius,
+        sessionKey,
+      );
+      enhancedShops = await enhanceShopData(googleResponse.results);
+      hasMore = googleResponse.has_more;
+      sessionInfo = {
+        search_type: "location",
+        ...googleResponse.session_info,
+        available_queries: searchQueries,
+      };
+    }
+
+    // Get government records for matching
     console.log("\n--- Fetching from Database ---");
     const govRecords = await LicenseRecord.find({
       "location.coordinates": { $exists: true, $ne: [] },
@@ -661,12 +911,12 @@ async function compareShops(req, res) {
       "location.coordinates.1": { $exists: true },
     });
 
-    // Match shops with licenses
+    // Match with licenses
     const { matches, googleShopStatusMap, totalComparisons, validComparisons } =
       matchShopsWithLicenses(enhancedShops, govRecords);
 
-    // Prepare response data
-    const allGoogleShops = enhancedShops.map((shop) => {
+    // Process shops with license data
+    let allGoogleShops = enhancedShops.map((shop) => {
       const statusInfo = googleShopStatusMap.get(shop.place_id);
       return {
         name: shop.name,
@@ -685,62 +935,55 @@ async function compareShops(req, res) {
         photos: shop.photos,
         license_status: statusInfo?.license_status,
         isMatched: statusInfo?.matchedRecord !== null,
+        matchedLicense: statusInfo?.matchedRecord,
       };
     });
 
-    console.log(`\n=== INITIAL SUMMARY ===`);
+    // Apply filters
+    allGoogleShops = applySearchFilters(allGoogleShops, filters);
+
+    console.log(`\n=== SUMMARY ===`);
     console.log(`Shops returned: ${allGoogleShops.length}`);
     console.log(`Matches found: ${matches.length}`);
-    console.log(`Has more results: ${googleResponse.has_more}`);
-    console.log(`Session key: ${sessionKey}`);
+    console.log(`Has more: ${hasMore}`);
+    if (sessionKey) console.log(`Session key: ${sessionKey}`);
 
     res.json({
       success: true,
       data: {
         shops: allGoogleShops,
-        matches,
+        matches: matches.filter((m) =>
+          allGoogleShops.some((s) => s.place_id === m.google.place_id),
+        ),
         pagination: {
           current_page: 1,
-          has_more: googleResponse.has_more,
+          has_more: hasMore,
           total_shown: allGoogleShops.length,
           session_key: sessionKey,
         },
-        search_info: {
-          ...googleResponse.session_info,
-          available_queries: SEARCH_QUERIES,
-        },
-        location_info: {
-          // Include location info in response
-          input_method:
-            req.body.lat && req.body.lng ? "coordinates" : "address",
-          final_coordinates: { lat, lng },
-          radius_used: finalRadius,
-          radius_determination: {
-            provided_radius: radius,
-            auto_determined: !req.body.lat || !req.body.lng,
-            location_specificity:
-              state && city && zipCode
-                ? "state_city_zip"
-                : state && city
-                  ? "state_city"
-                  : state
-                    ? "state_only"
-                    : "coordinates",
-          },
-          input_data:
-            req.body.lat && req.body.lng
-              ? { lat: req.body.lat, lng: req.body.lng, radius: finalRadius }
-              : { state, city, zipCode, radius: finalRadius },
-          used_geocoding: !req.body.lat || !req.body.lng,
-        },
+        search_info: sessionInfo,
+        location_info: isKeywordSearch
+          ? {
+              search_mode: "text_search",
+              keyword: keyword,
+              no_location_required: true,
+              filters_applied: filters,
+            }
+          : {
+              // existing location_info for location-based search
+              input_method:
+                req.body.lat && req.body.lng ? "coordinates" : "address",
+              final_coordinates: { lat, lng },
+              radius_used: finalRadius,
+              filters_applied: filters,
+            },
         debug: {
           googleShopsCount: allGoogleShops.length,
           govRecordsCount: govRecords.length,
           totalComparisons,
           validComparisons,
           matchesFound: matches.length,
-          sessionKey: sessionKey,
-          finalRadius: finalRadius,
+          searchMode: isKeywordSearch ? "keyword" : "location",
         },
       },
     });
@@ -748,7 +991,7 @@ async function compareShops(req, res) {
     console.error("Error in compare-shops:", error);
     res.status(500).json({
       success: false,
-      error: "Comparison failed",
+      error: "Search failed",
       details: error.message,
     });
   }
@@ -771,14 +1014,17 @@ async function getMoreShops(req, res) {
     console.log(`Session key: ${session_key}`);
 
     // Check if session exists
-    if (!queryStates.has(session_key)) {
+    const state = queryStates.get(session_key);
+    if (!state) {
       return res.status(400).json({
         success: false,
         error: "Invalid or expired session_key. Please start a new search.",
       });
     }
 
-    // Use the radius from the request (should match the original search)
+    // Get stored filters from session
+    const filters = state.filters || {};
+
     const finalRadius = parseInt(radius);
 
     // Get next batch of shops
@@ -822,7 +1068,7 @@ async function getMoreShops(req, res) {
     );
 
     // Prepare response data
-    const allGoogleShops = enhancedShops.map((shop) => {
+    let allGoogleShops = enhancedShops.map((shop) => {
       const statusInfo = googleShopStatusMap.get(shop.place_id);
       return {
         name: shop.name,
@@ -841,20 +1087,25 @@ async function getMoreShops(req, res) {
         photos: shop.photos,
         license_status: statusInfo?.license_status,
         isMatched: statusInfo?.matchedRecord !== null,
+        matchedLicense: statusInfo?.matchedRecord,
       };
     });
+
+    // Apply filters from session
+    allGoogleShops = applySearchFilters(allGoogleShops, filters);
 
     console.log(`\n=== MORE SHOPS SUMMARY ===`);
     console.log(`Additional shops returned: ${allGoogleShops.length}`);
     console.log(`New matches found: ${matches.length}`);
     console.log(`Has more results: ${googleResponse.has_more}`);
-    console.log(`Using radius: ${finalRadius}m`);
 
     res.json({
       success: true,
       data: {
         shops: allGoogleShops,
-        matches,
+        matches: matches.filter((m) =>
+          allGoogleShops.some((s) => s.place_id === m.google.place_id),
+        ),
         pagination: {
           has_more: googleResponse.has_more,
           total_shown: allGoogleShops.length,
@@ -862,7 +1113,7 @@ async function getMoreShops(req, res) {
         },
         search_info: {
           ...googleResponse.session_info,
-          available_queries: SEARCH_QUERIES,
+          filters_applied: filters,
         },
         debug: {
           newShopsCount: allGoogleShops.length,
@@ -893,7 +1144,8 @@ async function clearPaginationTokens(req, res) {
 
       // Clear related pagination tokens
       if (lat && lng && radius) {
-        SEARCH_QUERIES.forEach((query) => {
+        const queries = SEARCH_QUERIES;
+        queries.forEach((query) => {
           const queryKey = generateQueryPaginationKey(lat, lng, radius, query);
           paginationTokens.delete(queryKey);
         });
@@ -938,18 +1190,21 @@ async function getSessionStatus(req, res) {
       });
     }
 
+    const queries = state.customQueries || SEARCH_QUERIES;
+
     res.json({
       success: true,
       data: {
         session_key: session_key,
         current_query: getCurrentQuery(session_key),
         current_query_index: state.currentQueryIndex,
-        total_queries: SEARCH_QUERIES.length,
-        available_queries: SEARCH_QUERIES,
+        total_queries: queries.length,
+        available_queries: queries,
         total_fetched: state.totalFetched,
         unique_places_found: state.usedPlaceIds.size,
         queries_exhausted: Array.from(state.queriesExhausted),
         has_more: getCurrentQuery(session_key) !== null,
+        filters_applied: state.filters || {},
       },
     });
   } catch (error) {
