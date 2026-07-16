@@ -497,17 +497,21 @@ const createClaimRequest = async (req, res) => {
         `No license number match. Creating manual verification request for ${matchedRecord.business_name}`,
       );
 
-      // Check for existing pending claim for this business (by license record ID)
-      const existingClaim = await VerificationRequest.findOne({
-        pharmacyId: matchedRecord._id.toString(),
-        status: "pending",
-      });
-
-      if (existingClaim) {
-        return res.status(400).json({
-          success: false,
-          error: "A verification request is already pending for this business",
+      // Check if THIS user already has a pending claim for this business
+      if (userId) {
+        const existingClaim = await VerificationRequest.findOne({
+          pharmacyId: matchedRecord._id.toString(),
+          userId,
+          status: "pending",
         });
+
+        if (existingClaim) {
+          return res.status(400).json({
+            success: false,
+            error:
+              "You already have a pending verification request for this business",
+          });
+        }
       }
 
       // Prepare uploaded documents URLs
