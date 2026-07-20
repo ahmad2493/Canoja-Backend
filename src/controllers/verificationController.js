@@ -365,113 +365,18 @@ const createClaimRequest = async (req, res) => {
       });
     }
 
-    // Step 4: Handle cannabis operators - Check license number matching
+    // Step 4: Handle cannabis operators — always require admin approval.
+    // License numbers on listings are public/scraped data, so matching the DB
+    // value (including when auto-filled on the client) must not skip review.
     const licenseNumber = parsedLicenseInfo.license_number || "";
     const formLicenseNumber = licenseNumber.trim();
     const dbLicenseNumber = matchedRecord.license_number || "";
 
-    // Check if license numbers match
-    const licenseMatch =
+    if (
       formLicenseNumber !== "" &&
       dbLicenseNumber !== "" &&
-      formLicenseNumber === dbLicenseNumber;
-
-    // Determine verification status
-    let verificationStatus;
-    let needsAdminApproval = false;
-
-    if (licenseMatch) {
-      // License numbers match - Auto verified
-      verificationStatus = "auto_verified";
-      needsAdminApproval = false;
-
-      // Generate dummy password and auto-register user
-      const dummyPassword = generateDummyPassword();
-      const { user, isNewUser } = await autoRegisterUser(
-        parsedContactPerson.email_address,
-        dummyPassword,
-        matchedRecord._id,
-        parsedContactPerson.full_name || "",
-      );
-
-      // Update LicenseRecord (don't set canojaVerified if shop is not already verified)
-      const updateFields = {
-        adminVerificationRequired: false,
-        claimed: true,
-        claimedBy: user._id,
-        claimedAt: new Date(),
-      };
-
-      // Only set canojaVerified if shop is already verified
-      if (matchedRecord.canojaVerified === true) {
-        updateFields.canojaVerified = true;
-      }
-
-      // Update contact information (email intentionally excluded — operator's
-      // login email must not overwrite the public-facing scraped contact email)
-      if (business_phone_number) {
-        updateFields["contact_information.phone"] = business_phone_number;
-      }
-      if (website_or_social_media_link) {
-        updateFields["contact_information.website"] =
-          website_or_social_media_link;
-      }
-
-      await LicenseRecord.findByIdAndUpdate(matchedRecord._id, updateFields);
-
-      // Send appropriate email based on whether this is a new or existing account
-      try {
-        if (isNewUser) {
-          await sendVerificationEmail(
-            parsedContactPerson.email_address,
-            legal_business_name,
-            dummyPassword,
-          );
-        } else {
-          await sendBusinessLinkedEmail(
-            parsedContactPerson.email_address,
-            legal_business_name,
-          );
-        }
-        console.log(
-          `Email sent to ${parsedContactPerson.email_address} (${isNewUser ? "new user" : "existing user - business linked"})`,
-        );
-      } catch (emailError) {
-        console.error("Failed to send email:", emailError);
-      }
-
-      await saveAutoVerificationRecord({
-        pharmacyId: matchedRecord._id,
-        userId: user._id,
-        business_type: "cannabis_operator",
-        legal_business_name,
-        physical_address,
-        business_phone_number,
-        website_or_social_media_link,
-        parsedContactPerson,
-        parsedLicenseInfo,
-        uploadedDocuments,
-        govIdDocument,
-        ip_address: req.ip,
-        user_agent: req.headers["user-agent"],
-      });
-
-      return res.json({
-        success: true,
-        message:
-          "Your business has been auto-verified. Please check your email for details.",
-        data: {
-          business_type: "cannabis_operator",
-          verification_status: "auto_verified",
-          license_record_id: matchedRecord._id,
-          license_match: true,
-          user_created: isNewUser,
-          email_sent: true,
-          next_steps: "login_and_subscription",
-        },
-      });
-    } else if (formLicenseNumber !== "" && dbLicenseNumber !== "") {
-      // License numbers don't match - Prompt user
+      formLicenseNumber !== dbLicenseNumber
+    ) {
       return res.status(400).json({
         success: false,
         error:
@@ -482,11 +387,9 @@ const createClaimRequest = async (req, res) => {
           provided_license: formLicenseNumber,
         },
       });
-    } else {
-      // No license number in form OR in DB - Admin approval required
-      verificationStatus = "pending_review";
-      needsAdminApproval = true;
     }
+
+    const needsAdminApproval = true;
 
     // Step 5: Create manual verification request for admin approval
     if (needsAdminApproval) {
@@ -494,7 +397,7 @@ const createClaimRequest = async (req, res) => {
       // an out-of-scope variable (businessName was only defined in the fallback
       // branch when pharmacyId was not provided).
       console.log(
-        `No license number match. Creating manual verification request for ${matchedRecord.business_name}`,
+        `Creating manual verification request for cannabis operator: ${matchedRecord.business_name}`,
       );
 
       // Check if THIS user already has a pending claim for this business

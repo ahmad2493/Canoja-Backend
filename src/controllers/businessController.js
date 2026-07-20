@@ -727,6 +727,12 @@ async function getAnalytics(req, res) {
 async function requestEmailChange(req, res) {
   try {
     const userId = req.user?.id || req.user?._id;
+    if (!userId) {
+      return res
+        .status(401)
+        .json({ success: false, error: "Authentication required" });
+    }
+
     const new_email = req.body.new_email?.toLowerCase().trim();
 
     if (!new_email) {
@@ -772,7 +778,7 @@ async function requestEmailChange(req, res) {
     const otp = generateOTP();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    await new PasswordResetOTP({
+    const otpRecord = await new PasswordResetOTP({
       email: new_email,
       otp,
       expiresAt,
@@ -782,8 +788,18 @@ async function requestEmailChange(req, res) {
     }).save();
 
     try {
-      await sendEmailChangeOTP(new_email, otp);
+      const emailResult = await sendEmailChangeOTP(new_email, otp);
+      if (!emailResult?.success) {
+        otpRecord.used = true;
+        await otpRecord.save();
+        return res.status(500).json({
+          success: false,
+          error: "Failed to send verification email. Please try again.",
+        });
+      }
     } catch (emailError) {
+      otpRecord.used = true;
+      await otpRecord.save();
       console.error("Error sending email change OTP:", emailError);
       return res.status(500).json({
         success: false,
@@ -808,32 +824,60 @@ async function requestEmailChange(req, res) {
 async function confirmEmailChange(req, res) {
   try {
     const userId = req.user?.id || req.user?._id;
-    const { otp } = req.body;
+    if (!userId) {
+      return res
+        .status(401)
+        .json({ success: false, error: "Authentication required" });
+    }
 
-    if (!otp) {
+    const otpCode = String(req.body.otp || "").trim();
+    if (!otpCode) {
       return res.status(400).json({ success: false, error: "OTP is required" });
     }
 
     const otpRecord = await PasswordResetOTP.findOne({
       user_id: userId,
       purpose: "email_change",
+      otp: otpCode,
       used: false,
       expiresAt: { $gt: new Date() },
-    });
+    }).sort({ createdAt: -1 });
 
     if (!otpRecord) {
+      // Track failed attempts against the latest pending OTP for this user
+      const pendingOtp = await PasswordResetOTP.findOne({
+        user_id: userId,
+        purpose: "email_change",
+        used: false,
+        expiresAt: { $gt: new Date() },
+      }).sort({ createdAt: -1 });
+
+      if (pendingOtp) {
+        pendingOtp.attempts += 1;
+        await pendingOtp.save();
+        if (pendingOtp.attempts >= 5) {
+          pendingOtp.used = true;
+          await pendingOtp.save();
+          return res.status(400).json({
+            success: false,
+            error: "Too many failed attempts. Please request a new code.",
+          });
+        }
+      }
+
       return res.status(400).json({
         success: false,
-        error: "No pending email change found. Please request a new code.",
+        error: "Invalid or expired verification code",
       });
     }
 
-    if (otpRecord.otp !== otp) {
-      otpRecord.attempts += 1;
+    if (otpRecord.attempts >= 5) {
+      otpRecord.used = true;
       await otpRecord.save();
-      return res
-        .status(400)
-        .json({ success: false, error: "Invalid verification code" });
+      return res.status(400).json({
+        success: false,
+        error: "Too many failed attempts. Please request a new code.",
+      });
     }
 
     const newEmail = otpRecord.new_email;
