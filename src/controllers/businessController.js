@@ -1,3 +1,4 @@
+const jwt = require("jsonwebtoken");
 const LicenseRecord = require("../models/licenseRecord");
 const VerificationRequest = require("../models/verificationRequest");
 const BusinessView = require("../models/businessView");
@@ -11,16 +12,37 @@ const generateOTP = () =>
 
 // --- Helper: resolve the active business for an operator ---
 // Checks for X-Active-Business header so operators with multiple businesses
-// can specify which one they're managing. Falls back to the first claimed.
+// can specify which one they're managing. Falls back to the first linked record.
 async function getActiveBusiness(userId, req, select) {
   const businessId = req.headers["x-active-business"];
-  const query = { claimedBy: userId, claimed: true };
+  const user = await User.findById(userId).select("licenseRecords").lean();
+  const linkedIds = (user?.licenseRecords || []).map((id) => id.toString());
+
+  const runFind = (query) => {
+    const q = LicenseRecord.findOne(query);
+    return select ? q.select(select) : q;
+  };
+
   if (businessId) {
-    query._id = businessId;
+    const headerQuery = { claimed: true, _id: businessId };
+
+    if (linkedIds.length > 0) {
+      if (linkedIds.includes(businessId.toString())) {
+        const business = await runFind(headerQuery);
+        if (business) return business;
+      }
+    } else {
+      headerQuery.claimedBy = userId;
+      const business = await runFind(headerQuery);
+      if (business) return business;
+    }
   }
-  const q = LicenseRecord.findOne(query);
-  if (select) q.select(select);
-  return q;
+
+  if (linkedIds.length > 0) {
+    return runFind({ claimed: true, _id: { $in: linkedIds } });
+  }
+
+  return runFind({ claimed: true, claimedBy: userId });
 }
 
 // --- Get Business Dashboard Data ---
@@ -893,15 +915,30 @@ async function confirmEmailChange(req, res) {
       });
     }
 
-    await User.findByIdAndUpdate(userId, { email: newEmail });
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { email: newEmail },
+      { new: true },
+    ).select("-password -refreshToken -refreshTokenExpiresAt");
 
     otpRecord.used = true;
     await otpRecord.save();
+
+    const token = jwt.sign(
+      {
+        userId: updatedUser._id,
+        email: updatedUser.email,
+        role: updatedUser.role,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "30d" },
+    );
 
     res.json({
       success: true,
       message: "Email updated successfully",
       new_email: newEmail,
+      token,
     });
   } catch (error) {
     console.error("Confirm email change error:", error);
