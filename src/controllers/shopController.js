@@ -181,6 +181,28 @@ function buildDirectFilterQuery(country, state, city, filters) {
   if (filters.medical !== undefined) {
     query.license_type = new RegExp("medical", "i");
   }
+  if (filters.openNow === true) {
+    query.open_now = true;
+  } else if (filters.openNow === false) {
+    query.open_now = { $ne: true };
+  }
+  if (filters.hasMenu) {
+    query.$or = [
+      { menu_link: { $exists: true, $nin: [null, ""] } },
+      { menu: { $exists: true, $nin: [null, ""] } },
+    ];
+  }
+  if (filters.cannabisType !== undefined) {
+    if (Array.isArray(filters.cannabisType)) {
+      query.cannabis_type = {
+        $in: filters.cannabisType.map((t) => new RegExp(`^${t}$`, "i")),
+      };
+    } else {
+      query.cannabis_type = {
+        $regex: new RegExp(`^${filters.cannabisType}$`, "i"),
+      };
+    }
+  }
 
   // Only return shops with visibility: true (or undefined, which defaults to true)
   // visibility !== false means: true or undefined/null
@@ -400,6 +422,31 @@ function applySorting(shops, sortBy) {
     );
   }
   return sorted;
+}
+
+// Filters that cannot be expressed in buildDirectFilterQuery and require
+// scanning the full result set (e.g. favorites list, keyword openSearch).
+function needsInMemoryFiltering(filters) {
+  if (!filters || Object.keys(filters).length === 0) return false;
+  if (
+    filters.favorites &&
+    Array.isArray(filters.favorites) &&
+    filters.favorites.length > 0
+  ) {
+    return true;
+  }
+  if (
+    typeof filters.openSearch === "string" &&
+    filters.openSearch.trim().length > 0
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function getDirectFilterSort(sortBy) {
+  if (sortBy === "rating") return { rating: -1, business_name: 1 };
+  return { business_name: 1 };
 }
 
 // --- Build MongoDB query for location-based search ---
@@ -1112,13 +1159,6 @@ async function compareShops(req, res) {
         );
         query = buildDirectFilterQuery(country, state, city, filters);
 
-        // Get all matching shops
-        const allShops = await LicenseRecord.find(query)
-          .sort({ business_name: 1 })
-          .lean();
-
-        console.log(`Found ${allShops.length} shops matching direct filter`);
-
         // Geocode the location for response display (not for filtering)
         const geocodeResult = await geocodeAddress(state, city, null, country);
         if (geocodeResult.success) {
@@ -1129,17 +1169,35 @@ async function compareShops(req, res) {
           console.log(`Could not geocode location for response display`);
         }
 
-        // FORMAT EACH SHOP (this adds photo_url, photos array, etc.)
-        let formattedShops = allShops.map((shop) => formatShopData(shop));
+        const sortOptions = getDirectFilterSort(sortBy);
 
-        // Apply in-memory filters (openNow, operatorType, etc.)
-        formattedShops = applySearchFilters(formattedShops, filters);
-        formattedShops = applySorting(formattedShops, sortBy);
+        if (needsInMemoryFiltering(filters)) {
+          // Rare path: favorites / openSearch need the full set in memory
+          const allShops = await LicenseRecord.find(query)
+            .sort(sortOptions)
+            .lean();
 
-        totalCount = formattedShops.length;
+          console.log(`Found ${allShops.length} shops matching direct filter`);
 
-        // Paginate AFTER filtering
-        shops = formattedShops.slice(skip, skip + limitNum);
+          let formattedShops = allShops.map((shop) => formatShopData(shop));
+          formattedShops = applySearchFilters(formattedShops, filters);
+          formattedShops = applySorting(formattedShops, sortBy);
+          totalCount = formattedShops.length;
+          shops = formattedShops.slice(skip, skip + limitNum);
+        } else {
+          // Paginate at the database — avoids OOM on large countries (e.g. US)
+          totalCount = await LicenseRecord.countDocuments(query);
+          console.log(`Found ${totalCount} shops matching direct filter`);
+
+          const pageShops = await LicenseRecord.find(query)
+            .sort(sortOptions)
+            .skip(skip)
+            .limit(limitNum)
+            .lean();
+
+          shops = pageShops.map((shop) => formatShopData(shop));
+          shops = applySearchFilters(shops, filters);
+        }
 
         console.log(`Shops after filtering: ${totalCount}`);
         console.log(`Returning ${shops.length} shops for page ${pageNum}`);
