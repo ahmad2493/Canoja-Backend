@@ -43,6 +43,13 @@ router.use(authMiddleware);
 router.get("/dashboard", businessController.getBusinessDashboard);
 
 /**
+ * @route   PUT /api/business/plan
+ * @desc    Update the active business plan while in-app purchases are unavailable
+ * @access  Private
+ */
+router.put("/plan", businessController.updateBusinessPlan);
+
+/**
  * @route   GET /api/business/location
  * @desc    Get business location information
  * @access  Private

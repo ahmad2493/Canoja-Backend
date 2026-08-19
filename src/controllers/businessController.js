@@ -148,6 +148,51 @@ async function getBusinessDashboard(req, res) {
   }
 }
 
+// --- Temporarily update a plan until in-app subscriptions are integrated ---
+async function updateBusinessPlan(req, res) {
+  try {
+    const userId = req.user?.id || req.user?._id;
+    const { plan_tier: planTier } = req.body;
+
+    if (!userId) {
+      return res
+        .status(401)
+        .json({ success: false, error: "Authentication required" });
+    }
+
+    if (!["free", "starter"].includes(planTier)) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Invalid subscription plan" });
+    }
+
+    const business = await getActiveBusiness(userId, req);
+    if (!business) {
+      return res
+        .status(404)
+        .json({ success: false, error: "No business found for this user" });
+    }
+
+    business.plan_tier = planTier;
+    if (planTier === "free") business.featured = false;
+    await business.save();
+
+    return res.json({
+      success: true,
+      message:
+        planTier === "starter"
+          ? "Starter plan activated"
+          : "Free plan activated",
+      data: { plan_tier: planTier },
+    });
+  } catch (error) {
+    console.error("Update business plan error:", error);
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to update subscription plan" });
+  }
+}
+
 // --- Get Business Location ---
 async function getBusinessLocation(req, res) {
   try {
@@ -1002,6 +1047,7 @@ async function toggleSpotlight(req, res) {
 
 module.exports = {
   getBusinessDashboard,
+  updateBusinessPlan,
   getBusinessLocation,
   getBusinessProfile,
   updateBusinessProfile,
