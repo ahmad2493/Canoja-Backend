@@ -366,10 +366,7 @@ function applySearchFilters(shops, filters) {
     }
 
     // Featured filter
-    if (
-      filters.featured &&
-      (!shop.featured || shop.plan_tier !== "starter")
-    ) {
+    if (filters.featured && !shop.featured) {
       return false;
     }
 
