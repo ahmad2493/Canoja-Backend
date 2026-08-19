@@ -132,6 +132,7 @@ const loginUser = async (req, res) => {
           business_name: 1,
           claimed: 1,
           canojaVerified: 1,
+          plan_tier: 1,
           license_type: 1,
           city: 1,
           stateName: 1,
@@ -200,6 +201,14 @@ const changePassword = async (req, res) => {
       return res.status(401).json({
         success: false,
         error: "Current password is incorrect",
+      });
+    }
+
+    const isSamePassword = await bcrypt.compare(newPassword, user.password);
+    if (isSamePassword) {
+      return res.status(400).json({
+        success: false,
+        error: "New password must be different from current password",
       });
     }
 
@@ -406,6 +415,14 @@ const verifyOTPAndResetPassword = async (req, res) => {
       });
     }
 
+    const isSamePassword = await bcrypt.compare(newPassword, user.password);
+    if (isSamePassword) {
+      return res.status(400).json({
+        success: false,
+        error: "New password must be different from current password",
+      });
+    }
+
     // Hash new password
     const hashedPassword = await bcrypt.hash(newPassword, 12);
 
@@ -550,6 +567,7 @@ const getUserProfile = async (req, res) => {
           business_name: 1,
           claimed: 1,
           canojaVerified: 1,
+          plan_tier: 1,
           license_type: 1,
           city: 1,
           stateName: 1,

@@ -53,7 +53,7 @@ const {
  *               contact_person:
  *                 type: string
  *                 description: JSON string for contact person details
- *                 example: '{"full_name":"John Doe","email_address":"john@example.com","phone_number":"+1-555-123-4567","role_or_position":"Owner"}'
+ *                 example: '{"first_name":"John","last_name":"Doe","full_name":"John Doe","email_address":"john@example.com","phone_number":"+1-555-123-4567","role_or_position":"Owner"}'
  *               license_information:
  *                 type: string
  *                 description: JSON string for license details

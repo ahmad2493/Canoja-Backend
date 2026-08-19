@@ -476,6 +476,8 @@ const createClaimRequest = async (req, res) => {
 
         // Contact Person Information
         contact_person: {
+          first_name: parsedContactPerson.first_name,
+          last_name: parsedContactPerson.last_name,
           full_name: parsedContactPerson.full_name,
           email_address: parsedContactPerson.email_address,
           phone_number: parsedContactPerson.phone_number,

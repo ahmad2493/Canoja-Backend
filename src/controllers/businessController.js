@@ -129,7 +129,9 @@ async function getBusinessDashboard(req, res) {
       business_id: business._id,
       business_name: business.business_name,
       menu_url: business.menu || null,
-      spotlight: business.featured || false,
+      plan_tier: business.plan_tier || "free",
+      spotlight:
+        business.plan_tier === "starter" && (business.featured || false),
     };
 
     res.json({
@@ -970,6 +972,14 @@ async function toggleSpotlight(req, res) {
       return res
         .status(404)
         .json({ success: false, error: "No business found for this user" });
+    }
+
+    if (spotlight && business.plan_tier !== "starter") {
+      return res.status(403).json({
+        success: false,
+        code: "SUBSCRIPTION_REQUIRED",
+        error: "Spotlight requires a Starter subscription",
+      });
     }
 
     business.featured = spotlight;

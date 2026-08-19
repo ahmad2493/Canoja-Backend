@@ -144,6 +144,12 @@ const licenseRecordSchema = new mongoose.Schema(
     // Verification
     canojaVerified: { type: Boolean, default: false },
     adminVerificationRequired: { type: Boolean, default: false },
+    plan_tier: {
+      type: String,
+      enum: ["free", "starter"],
+      default: "free",
+      index: true,
+    },
     featured: { type: Boolean, default: false },
     dba: String,
 

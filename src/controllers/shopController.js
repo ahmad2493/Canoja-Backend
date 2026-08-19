@@ -157,6 +157,7 @@ function buildDirectFilterQuery(country, state, city, filters) {
   }
   if (filters.featured !== undefined) {
     query.featured = filters.featured;
+    if (filters.featured === true) query.plan_tier = "starter";
   }
   if (filters.verified !== undefined) {
     query.verified = filters.verified;
@@ -365,7 +366,10 @@ function applySearchFilters(shops, filters) {
     }
 
     // Featured filter
-    if (filters.featured && !shop.featured) {
+    if (
+      filters.featured &&
+      (!shop.featured || shop.plan_tier !== "starter")
+    ) {
       return false;
     }
 
@@ -492,6 +496,7 @@ function buildLocationQuery(lat, lng, radius, filters) {
   }
   if (filters.featured !== undefined) {
     query.featured = filters.featured;
+    if (filters.featured === true) query.plan_tier = "starter";
   }
   if (filters.verified !== undefined) {
     query.verified = filters.verified;
@@ -579,6 +584,9 @@ function buildKeywordQuery(keyword, filters) {
   }
   if (filters.featured !== undefined) {
     searchConditions.push({ featured: filters.featured });
+    if (filters.featured === true) {
+      searchConditions.push({ plan_tier: "starter" });
+    }
   }
   if (filters.verified !== undefined) {
     searchConditions.push({ verified: filters.verified });
@@ -1503,6 +1511,7 @@ async function getSpotlightShops(req, res) {
     // Fetch one extra to detect hasMore
     const raw = await LicenseRecord.find({
       featured: true,
+      plan_tier: "starter",
       visibility: { $ne: false },
     })
       .sort({ rating: -1, _id: -1 })
@@ -1514,6 +1523,7 @@ async function getSpotlightShops(req, res) {
     const records = raw.slice(0, limit);
     const total = await LicenseRecord.countDocuments({
       featured: true,
+      plan_tier: "starter",
       visibility: { $ne: false },
     });
 

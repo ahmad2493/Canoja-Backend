@@ -66,6 +66,12 @@ const verificationRequestSchema = new mongoose.Schema(
     },
 
     contact_person: {
+      first_name: {
+        type: String,
+      },
+      last_name: {
+        type: String,
+      },
       full_name: {
         type: String,
         required: true,
