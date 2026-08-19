@@ -15,6 +15,12 @@ const userSchema = new mongoose.Schema(
       enum: ["consumer", "operator", "admin"],
       default: "consumer",
     },
+    plan_tier: {
+      type: String,
+      enum: ["free", "starter"],
+      default: "free",
+      index: true,
+    },
     licenseRecords: [
       {
         type: mongoose.Schema.Types.ObjectId,

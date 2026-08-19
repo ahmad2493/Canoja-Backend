@@ -45,6 +45,33 @@ async function getActiveBusiness(userId, req, select) {
   return runFind({ claimed: true, claimedBy: userId });
 }
 
+async function getAccountPlan(userId) {
+  const user = await User.findById(userId).select("plan_tier licenseRecords");
+  if (!user) return null;
+
+  const linkedIds = user.licenseRecords || [];
+  const businessQuery = linkedIds.length
+    ? { claimed: true, _id: { $in: linkedIds } }
+    : { claimed: true, claimedBy: userId };
+
+  let planTier = user.plan_tier || "free";
+
+  // Migrate existing subscriptions that were stored on only one business.
+  if (planTier !== "starter") {
+    const subscribedBusiness = await LicenseRecord.exists({
+      ...businessQuery,
+      plan_tier: "starter",
+    });
+    if (subscribedBusiness) {
+      planTier = "starter";
+      user.plan_tier = "starter";
+      await user.save();
+    }
+  }
+
+  return { user, planTier, businessQuery };
+}
+
 // --- Get Business Dashboard Data ---
 async function getBusinessDashboard(req, res) {
   try {
@@ -65,6 +92,14 @@ async function getBusinessDashboard(req, res) {
         success: false,
         error: "No business found for this user",
       });
+    }
+
+    const account = await getAccountPlan(userId);
+    const planTier = account?.planTier || "free";
+    if (business.plan_tier !== planTier) {
+      business.plan_tier = planTier;
+      if (planTier === "free") business.featured = false;
+      await business.save();
     }
 
     // Get verification status
@@ -129,9 +164,8 @@ async function getBusinessDashboard(req, res) {
       business_id: business._id,
       business_name: business.business_name,
       menu_url: business.menu || null,
-      plan_tier: business.plan_tier || "free",
-      spotlight:
-        business.plan_tier === "starter" && (business.featured || false),
+      plan_tier: planTier,
+      spotlight: planTier === "starter" && (business.featured || false),
     };
 
     res.json({
@@ -173,9 +207,19 @@ async function updateBusinessPlan(req, res) {
         .json({ success: false, error: "No business found for this user" });
     }
 
-    business.plan_tier = planTier;
-    if (planTier === "free") business.featured = false;
-    await business.save();
+    const account = await getAccountPlan(userId);
+    if (!account) {
+      return res.status(404).json({ success: false, error: "User not found" });
+    }
+
+    account.user.plan_tier = planTier;
+    await account.user.save();
+
+    const businessUpdate = { plan_tier: planTier };
+    if (planTier === "free") businessUpdate.featured = false;
+    await LicenseRecord.updateMany(account.businessQuery, {
+      $set: businessUpdate,
+    });
 
     return res.json({
       success: true,
@@ -1019,7 +1063,10 @@ async function toggleSpotlight(req, res) {
         .json({ success: false, error: "No business found for this user" });
     }
 
-    if (spotlight && business.plan_tier !== "starter") {
+    const account = await getAccountPlan(userId);
+    const planTier = account?.planTier || "free";
+
+    if (spotlight && planTier !== "starter") {
       return res.status(403).json({
         success: false,
         code: "SUBSCRIPTION_REQUIRED",
@@ -1027,6 +1074,7 @@ async function toggleSpotlight(req, res) {
       });
     }
 
+    business.plan_tier = planTier;
     business.featured = spotlight;
     await business.save();
 

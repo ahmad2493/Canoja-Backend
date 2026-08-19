@@ -294,6 +294,7 @@ const createClaimRequest = async (req, res) => {
         claimed: true,
         claimedBy: user._id,
         claimedAt: new Date(),
+        plan_tier: user.plan_tier || "free",
       };
 
       // Only set canojaVerified if shop is already verified
@@ -662,6 +663,7 @@ const approveRequest = async (req, res) => {
         claimed: true,
         claimedBy: user._id,
         claimedAt: new Date(),
+        plan_tier: user.plan_tier || "free",
       };
 
       // Only set canojaVerified if shop is already verified (don't set it for non-verified shops)

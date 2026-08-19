@@ -150,6 +150,7 @@ const loginUser = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        plan_tier: user.plan_tier || "free",
         requiresPasswordChange: user.requiresPasswordChange || false,
         businesses,
       },
