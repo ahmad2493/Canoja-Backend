@@ -157,7 +157,10 @@ function buildDirectFilterQuery(country, state, city, filters) {
   }
   if (filters.featured !== undefined) {
     query.featured = filters.featured;
-    if (filters.featured === true) query.plan_tier = "starter";
+    if (filters.featured === true) {
+      query.plan_tier = "starter";
+      query.claimed = true;
+    }
   }
   if (filters.verified !== undefined) {
     query.verified = filters.verified;
@@ -493,7 +496,10 @@ function buildLocationQuery(lat, lng, radius, filters) {
   }
   if (filters.featured !== undefined) {
     query.featured = filters.featured;
-    if (filters.featured === true) query.plan_tier = "starter";
+    if (filters.featured === true) {
+      query.plan_tier = "starter";
+      query.claimed = true;
+    }
   }
   if (filters.verified !== undefined) {
     query.verified = filters.verified;
@@ -583,6 +589,7 @@ function buildKeywordQuery(keyword, filters) {
     searchConditions.push({ featured: filters.featured });
     if (filters.featured === true) {
       searchConditions.push({ plan_tier: "starter" });
+      searchConditions.push({ claimed: true });
     }
   }
   if (filters.verified !== undefined) {
@@ -1508,6 +1515,7 @@ async function getSpotlightShops(req, res) {
     // Fetch one extra to detect hasMore
     const raw = await LicenseRecord.find({
       featured: true,
+      claimed: true,
       plan_tier: "starter",
       visibility: { $ne: false },
     })
@@ -1520,6 +1528,7 @@ async function getSpotlightShops(req, res) {
     const records = raw.slice(0, limit);
     const total = await LicenseRecord.countDocuments({
       featured: true,
+      claimed: true,
       plan_tier: "starter",
       visibility: { $ne: false },
     });
