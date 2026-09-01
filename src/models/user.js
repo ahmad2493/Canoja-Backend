@@ -17,7 +17,7 @@ const userSchema = new mongoose.Schema(
     },
     plan_tier: {
       type: String,
-      enum: ["free", "starter"],
+      enum: ["free", "starter", "pro"],
       default: "free",
       index: true,
     },

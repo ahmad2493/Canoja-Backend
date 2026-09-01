@@ -7,6 +7,7 @@ const AnalyticsEvent = require("../models/analyticsEvent");
 const User = require("../models/user");
 const PasswordResetOTP = require("../models/passwordResetOTP");
 const { sendEmailChangeOTP } = require("../utils/emailService");
+const PAID_PLAN_TIERS = ["starter", "pro"];
 
 const generateOTP = () =>
   Math.floor(100000 + Math.random() * 900000).toString();
@@ -57,14 +58,14 @@ async function getAccountPlan(userId) {
   let planTier = user.plan_tier || "free";
 
   // Migrate existing subscriptions that were stored on only one business.
-  if (planTier !== "starter") {
-    const subscribedBusiness = await LicenseRecord.exists({
+  if (!PAID_PLAN_TIERS.includes(planTier)) {
+    const subscribedBusiness = await LicenseRecord.findOne({
       ...businessQuery,
-      plan_tier: "starter",
-    });
+      plan_tier: { $in: PAID_PLAN_TIERS },
+    }).select("plan_tier");
     if (subscribedBusiness) {
-      planTier = "starter";
-      user.plan_tier = "starter";
+      planTier = subscribedBusiness.plan_tier;
+      user.plan_tier = planTier;
       await user.save();
     }
   }
@@ -165,7 +166,7 @@ async function getBusinessDashboard(req, res) {
       business_name: business.business_name,
       menu_url: business.menu || null,
       plan_tier: planTier,
-      spotlight: planTier === "starter" && (business.featured || false),
+      spotlight: PAID_PLAN_TIERS.includes(planTier) && (business.featured || false),
     };
 
     res.json({
@@ -194,7 +195,7 @@ async function updateBusinessPlan(req, res) {
         .json({ success: false, error: "Authentication required" });
     }
 
-    if (!["free", "starter"].includes(planTier)) {
+    if (!["free", ...PAID_PLAN_TIERS].includes(planTier)) {
       return res
         .status(400)
         .json({ success: false, error: "Invalid subscription plan" });
@@ -224,8 +225,8 @@ async function updateBusinessPlan(req, res) {
     return res.json({
       success: true,
       message:
-        planTier === "starter"
-          ? "Starter plan activated"
+        PAID_PLAN_TIERS.includes(planTier)
+          ? `${planTier === "pro" ? "Pro" : "Starter"} plan activated`
           : "Free plan activated",
       data: { plan_tier: planTier },
     });
@@ -1073,7 +1074,7 @@ async function toggleSpotlight(req, res) {
     const account = await getAccountPlan(userId);
     const planTier = account?.planTier || "free";
 
-    if (spotlight && planTier !== "starter") {
+    if (spotlight && !PAID_PLAN_TIERS.includes(planTier)) {
       return res.status(403).json({
         success: false,
         code: "SUBSCRIPTION_REQUIRED",

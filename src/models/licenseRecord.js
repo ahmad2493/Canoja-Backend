@@ -146,7 +146,7 @@ const licenseRecordSchema = new mongoose.Schema(
     adminVerificationRequired: { type: Boolean, default: false },
     plan_tier: {
       type: String,
-      enum: ["free", "starter"],
+      enum: ["free", "starter", "pro"],
       default: "free",
       index: true,
     },
