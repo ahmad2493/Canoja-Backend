@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
 const LicenseRecord = require("../models/licenseRecord");
 const VerificationRequest = require("../models/verificationRequest");
 const BusinessView = require("../models/businessView");
@@ -12,7 +13,8 @@ const generateOTP = () =>
 
 // --- Helper: resolve the active business for an operator ---
 // Checks for X-Active-Business header so operators with multiple businesses
-// can specify which one they're managing. Falls back to the first linked record.
+// can specify which one they're managing. An explicit invalid/unauthorized ID
+// must not fall back to another business because updates could target the wrong shop.
 async function getActiveBusiness(userId, req, select) {
   const businessId = req.headers["x-active-business"];
   const user = await User.findById(userId).select("licenseRecords").lean();
@@ -24,18 +26,16 @@ async function getActiveBusiness(userId, req, select) {
   };
 
   if (businessId) {
+    if (!mongoose.isValidObjectId(businessId)) return null;
     const headerQuery = { claimed: true, _id: businessId };
 
     if (linkedIds.length > 0) {
-      if (linkedIds.includes(businessId.toString())) {
-        const business = await runFind(headerQuery);
-        if (business) return business;
-      }
-    } else {
-      headerQuery.claimedBy = userId;
-      const business = await runFind(headerQuery);
-      if (business) return business;
+      if (!linkedIds.includes(businessId.toString())) return null;
+      return runFind(headerQuery);
     }
+
+    headerQuery.claimedBy = userId;
+    return runFind(headerQuery);
   }
 
   if (linkedIds.length > 0) {
@@ -408,9 +408,16 @@ async function updateBusinessProfile(req, res) {
     if (description !== undefined) updateFields.description = description;
     if (about !== undefined) updateFields.about = about;
 
-    await LicenseRecord.findByIdAndUpdate(business._id, updateFields, {
+    const updatedBusiness = await LicenseRecord.findByIdAndUpdate(business._id, updateFields, {
       new: true,
     });
+
+    if (!updatedBusiness) {
+      return res.status(404).json({
+        success: false,
+        error: "Business no longer exists",
+      });
+    }
 
     res.json({
       success: true,
