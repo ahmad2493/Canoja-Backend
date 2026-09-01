@@ -17,7 +17,7 @@ const ageVerificationLogSchema = new mongoose.Schema(
     },
     platform: {
       type: String,
-      enum: ["ios", "android"],
+      enum: ["ios", "android", "web"],
     },
     device_id: {
       type: String,
