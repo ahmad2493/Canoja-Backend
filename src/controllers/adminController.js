@@ -107,6 +107,7 @@ async function listRetailers(req, res) {
     const {
       q,
       state,
+      city,
       licenseStatus,
       verificationStatus,
       expirationWindow,
@@ -124,6 +125,8 @@ async function listRetailers(req, res) {
       filter.$or = [
         { business_name: regex },
         { dba: regex },
+        { city: regex },
+        { business_address: regex },
         { license_number: regex },
         { "contact_information.phone": regex },
         { "contact_information.email": regex },
@@ -131,6 +134,10 @@ async function listRetailers(req, res) {
     }
 
     if (state) filter.stateName = state;
+    if (city) {
+      const escapedCity = city.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      filter.city = new RegExp(`^${escapedCity}$`, "i");
+    }
     if (licenseStatus)
       filter.license_status = new RegExp(
         `^${licenseStatus.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,

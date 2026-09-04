@@ -19,7 +19,7 @@ router.get("/verification-history", adminController.listVerificationHistory);
 // ─── Phase 2 additions ────────────────────────────────────────────────────────
 
 // GET /api/admin/retailers
-// Query params: q, state, licenseStatus, verificationStatus, expirationWindow, page, limit, sort
+// Query params: q, state, city, licenseStatus, verificationStatus, expirationWindow, page, limit, sort
 router.get("/retailers", adminController.listRetailers);
 
 // POST /api/admin/retailers
